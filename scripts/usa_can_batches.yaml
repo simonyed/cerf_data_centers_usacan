@@ -1,0 +1,22 @@
+batch_defaults:
+  output_name_template: "batch_{batch_id:02d}.geojson"
+  config_name_template: "batch_{batch_id:02d}.yaml"
+  log_name_template: "batch_{batch_id:02d}.log"
+
+batches:
+  - batch_id: 1
+    region_ids: [91, 5, 26, 19, 46, 24]
+  - batch_id: 2
+    region_ids: [48, 37, 29, 53, 98, 4, 32]
+  - batch_id: 3
+    region_ids: [90, 17, 55, 41, 22, 40, 33, 10]
+  - batch_id: 4
+    region_ids: [92, 99, 21, 27, 31, 16, 34]
+  - batch_id: 5
+    region_ids: [13, 45, 28, 42, 12, 30, 50]
+  - batch_id: 6
+    region_ids: [95, 47, 6, 36, 38, 35, 54, 25]
+  - batch_id: 7
+    region_ids: [94, 97, 18, 20, 49, 51, 9]
+  - batch_id: 8
+    region_ids: [1, 96, 93, 39, 8, 23, 56, 44, 11]

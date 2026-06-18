@@ -1,0 +1,554 @@
+﻿settings:
+  region_raster_path: "C:/Users/67084/Desktop/cerf_data_centers/USA_CAN_inputs/state_siting_region.tif"
+  siting_raster_path: "C:/Users/67084/Desktop/cerf_data_centers/USA_CAN_inputs/composite_siting_suitability.tif"
+  output_root: "C:/Users/67084/Desktop/cerf_data_centers/outputs/usa_can_batches"
+  cost_weight: 0.5
+  market_weight: 0.5
+
+constraints:
+  land_cost_per_sqft: "C:/Users/67084/Desktop/cerf_data_centers/USA_CAN_inputs/land_value_dollar_per_sqft.tif"
+  electricity_rate_per_kwh: "C:/Users/67084/Desktop/cerf_data_centers/USA_CAN_inputs/industrial_electricity_rates_dollar_per_kwh.tif"
+  personal_prop_tax_rate: "C:/Users/67084/Desktop/cerf_data_centers/USA_CAN_inputs/personal_property_tax_rate.tif"
+  real_property_tax_rate: "C:/Users/67084/Desktop/cerf_data_centers/USA_CAN_inputs/real_property_tax_rate.tif"
+  sales_tax_rate: "C:/Users/67084/Desktop/cerf_data_centers/USA_CAN_inputs/sales_tax_rate.tif"
+  interconnection_distance_km: "C:/Users/67084/Desktop/cerf_data_centers/USA_CAN_inputs/distance_to_substation.tif"
+  mechanical_cool_fraction: "C:/Users/67084/Desktop/cerf_data_centers/USA_CAN_inputs/mechanical_cooling_fraction.tif"
+  water_cool_fraction: "C:/Users/67084/Desktop/cerf_data_centers/USA_CAN_inputs/water_cooling_fraction.tif"
+
+market_gravity:
+  market_raster_path: "C:/Users/67084/Desktop/cerf_data_centers/USA_CAN_inputs/data_center_market_locations.tif"
+
+expansion_plan:
+  region_01:
+    region_id: 1
+    campus_size_square_ft: 4_000_000
+    equipment_capital_expenditure_usd: 40_000_000_000
+    building_capital_expenditure_usd: 15_000_000_000
+    data_center_it_power_mw: 36
+    data_center_pue: 1.3
+    interconnection_cost_usd_per_km: 3000000
+    n_sites: 500
+  region_04:
+    region_id: 4
+    campus_size_square_ft: 4_000_000
+    equipment_capital_expenditure_usd: 40_000_000_000
+    building_capital_expenditure_usd: 15_000_000_000
+    data_center_it_power_mw: 36
+    data_center_pue: 1.3
+    interconnection_cost_usd_per_km: 3000000
+    n_sites: 500
+  region_05:
+    region_id: 5
+    campus_size_square_ft: 4_000_000
+    equipment_capital_expenditure_usd: 40_000_000_000
+    building_capital_expenditure_usd: 15_000_000_000
+    data_center_it_power_mw: 36
+    data_center_pue: 1.3
+    interconnection_cost_usd_per_km: 3000000
+    n_sites: 500
+  region_06:
+    region_id: 6
+    campus_size_square_ft: 4_000_000
+    equipment_capital_expenditure_usd: 40_000_000_000
+    building_capital_expenditure_usd: 15_000_000_000
+    data_center_it_power_mw: 36
+    data_center_pue: 1.3
+    interconnection_cost_usd_per_km: 3000000
+    n_sites: 500
+  region_08:
+    region_id: 8
+    campus_size_square_ft: 4_000_000
+    equipment_capital_expenditure_usd: 40_000_000_000
+    building_capital_expenditure_usd: 15_000_000_000
+    data_center_it_power_mw: 36
+    data_center_pue: 1.3
+    interconnection_cost_usd_per_km: 3000000
+    n_sites: 500
+  region_09:
+    region_id: 9
+    campus_size_square_ft: 4_000_000
+    equipment_capital_expenditure_usd: 40_000_000_000
+    building_capital_expenditure_usd: 15_000_000_000
+    data_center_it_power_mw: 36
+    data_center_pue: 1.3
+    interconnection_cost_usd_per_km: 3000000
+    n_sites: 500
+  region_10:
+    region_id: 10
+    campus_size_square_ft: 4_000_000
+    equipment_capital_expenditure_usd: 40_000_000_000
+    building_capital_expenditure_usd: 15_000_000_000
+    data_center_it_power_mw: 36
+    data_center_pue: 1.3
+    interconnection_cost_usd_per_km: 3000000
+    n_sites: 500
+  region_11:
+    region_id: 11
+    campus_size_square_ft: 4_000_000
+    equipment_capital_expenditure_usd: 40_000_000_000
+    building_capital_expenditure_usd: 15_000_000_000
+    data_center_it_power_mw: 36
+    data_center_pue: 1.3
+    interconnection_cost_usd_per_km: 3000000
+    n_sites: 500
+  region_12:
+    region_id: 12
+    campus_size_square_ft: 4_000_000
+    equipment_capital_expenditure_usd: 40_000_000_000
+    building_capital_expenditure_usd: 15_000_000_000
+    data_center_it_power_mw: 36
+    data_center_pue: 1.3
+    interconnection_cost_usd_per_km: 3000000
+    n_sites: 500
+  region_13:
+    region_id: 13
+    campus_size_square_ft: 4_000_000
+    equipment_capital_expenditure_usd: 40_000_000_000
+    building_capital_expenditure_usd: 15_000_000_000
+    data_center_it_power_mw: 36
+    data_center_pue: 1.3
+    interconnection_cost_usd_per_km: 3000000
+    n_sites: 500
+  region_16:
+    region_id: 16
+    campus_size_square_ft: 4_000_000
+    equipment_capital_expenditure_usd: 40_000_000_000
+    building_capital_expenditure_usd: 15_000_000_000
+    data_center_it_power_mw: 36
+    data_center_pue: 1.3
+    interconnection_cost_usd_per_km: 3000000
+    n_sites: 500
+  region_17:
+    region_id: 17
+    campus_size_square_ft: 4_000_000
+    equipment_capital_expenditure_usd: 40_000_000_000
+    building_capital_expenditure_usd: 15_000_000_000
+    data_center_it_power_mw: 36
+    data_center_pue: 1.3
+    interconnection_cost_usd_per_km: 3000000
+    n_sites: 500
+  region_18:
+    region_id: 18
+    campus_size_square_ft: 4_000_000
+    equipment_capital_expenditure_usd: 40_000_000_000
+    building_capital_expenditure_usd: 15_000_000_000
+    data_center_it_power_mw: 36
+    data_center_pue: 1.3
+    interconnection_cost_usd_per_km: 3000000
+    n_sites: 500
+  region_19:
+    region_id: 19
+    campus_size_square_ft: 4_000_000
+    equipment_capital_expenditure_usd: 40_000_000_000
+    building_capital_expenditure_usd: 15_000_000_000
+    data_center_it_power_mw: 36
+    data_center_pue: 1.3
+    interconnection_cost_usd_per_km: 3000000
+    n_sites: 500
+  region_20:
+    region_id: 20
+    campus_size_square_ft: 4_000_000
+    equipment_capital_expenditure_usd: 40_000_000_000
+    building_capital_expenditure_usd: 15_000_000_000
+    data_center_it_power_mw: 36
+    data_center_pue: 1.3
+    interconnection_cost_usd_per_km: 3000000
+    n_sites: 500
+  region_21:
+    region_id: 21
+    campus_size_square_ft: 4_000_000
+    equipment_capital_expenditure_usd: 40_000_000_000
+    building_capital_expenditure_usd: 15_000_000_000
+    data_center_it_power_mw: 36
+    data_center_pue: 1.3
+    interconnection_cost_usd_per_km: 3000000
+    n_sites: 500
+  region_22:
+    region_id: 22
+    campus_size_square_ft: 4_000_000
+    equipment_capital_expenditure_usd: 40_000_000_000
+    building_capital_expenditure_usd: 15_000_000_000
+    data_center_it_power_mw: 36
+    data_center_pue: 1.3
+    interconnection_cost_usd_per_km: 3000000
+    n_sites: 500
+  region_23:
+    region_id: 23
+    campus_size_square_ft: 4_000_000
+    equipment_capital_expenditure_usd: 40_000_000_000
+    building_capital_expenditure_usd: 15_000_000_000
+    data_center_it_power_mw: 36
+    data_center_pue: 1.3
+    interconnection_cost_usd_per_km: 3000000
+    n_sites: 500
+  region_24:
+    region_id: 24
+    campus_size_square_ft: 4_000_000
+    equipment_capital_expenditure_usd: 40_000_000_000
+    building_capital_expenditure_usd: 15_000_000_000
+    data_center_it_power_mw: 36
+    data_center_pue: 1.3
+    interconnection_cost_usd_per_km: 3000000
+    n_sites: 500
+  region_25:
+    region_id: 25
+    campus_size_square_ft: 4_000_000
+    equipment_capital_expenditure_usd: 40_000_000_000
+    building_capital_expenditure_usd: 15_000_000_000
+    data_center_it_power_mw: 36
+    data_center_pue: 1.3
+    interconnection_cost_usd_per_km: 3000000
+    n_sites: 500
+  region_26:
+    region_id: 26
+    campus_size_square_ft: 4_000_000
+    equipment_capital_expenditure_usd: 40_000_000_000
+    building_capital_expenditure_usd: 15_000_000_000
+    data_center_it_power_mw: 36
+    data_center_pue: 1.3
+    interconnection_cost_usd_per_km: 3000000
+    n_sites: 500
+  region_27:
+    region_id: 27
+    campus_size_square_ft: 4_000_000
+    equipment_capital_expenditure_usd: 40_000_000_000
+    building_capital_expenditure_usd: 15_000_000_000
+    data_center_it_power_mw: 36
+    data_center_pue: 1.3
+    interconnection_cost_usd_per_km: 3000000
+    n_sites: 500
+  region_28:
+    region_id: 28
+    campus_size_square_ft: 4_000_000
+    equipment_capital_expenditure_usd: 40_000_000_000
+    building_capital_expenditure_usd: 15_000_000_000
+    data_center_it_power_mw: 36
+    data_center_pue: 1.3
+    interconnection_cost_usd_per_km: 3000000
+    n_sites: 500
+  region_29:
+    region_id: 29
+    campus_size_square_ft: 4_000_000
+    equipment_capital_expenditure_usd: 40_000_000_000
+    building_capital_expenditure_usd: 15_000_000_000
+    data_center_it_power_mw: 36
+    data_center_pue: 1.3
+    interconnection_cost_usd_per_km: 3000000
+    n_sites: 500
+  region_30:
+    region_id: 30
+    campus_size_square_ft: 4_000_000
+    equipment_capital_expenditure_usd: 40_000_000_000
+    building_capital_expenditure_usd: 15_000_000_000
+    data_center_it_power_mw: 36
+    data_center_pue: 1.3
+    interconnection_cost_usd_per_km: 3000000
+    n_sites: 500
+  region_31:
+    region_id: 31
+    campus_size_square_ft: 4_000_000
+    equipment_capital_expenditure_usd: 40_000_000_000
+    building_capital_expenditure_usd: 15_000_000_000
+    data_center_it_power_mw: 36
+    data_center_pue: 1.3
+    interconnection_cost_usd_per_km: 3000000
+    n_sites: 500
+  region_32:
+    region_id: 32
+    campus_size_square_ft: 4_000_000
+    equipment_capital_expenditure_usd: 40_000_000_000
+    building_capital_expenditure_usd: 15_000_000_000
+    data_center_it_power_mw: 36
+    data_center_pue: 1.3
+    interconnection_cost_usd_per_km: 3000000
+    n_sites: 500
+  region_33:
+    region_id: 33
+    campus_size_square_ft: 4_000_000
+    equipment_capital_expenditure_usd: 40_000_000_000
+    building_capital_expenditure_usd: 15_000_000_000
+    data_center_it_power_mw: 36
+    data_center_pue: 1.3
+    interconnection_cost_usd_per_km: 3000000
+    n_sites: 500
+  region_34:
+    region_id: 34
+    campus_size_square_ft: 4_000_000
+    equipment_capital_expenditure_usd: 40_000_000_000
+    building_capital_expenditure_usd: 15_000_000_000
+    data_center_it_power_mw: 36
+    data_center_pue: 1.3
+    interconnection_cost_usd_per_km: 3000000
+    n_sites: 500
+  region_35:
+    region_id: 35
+    campus_size_square_ft: 4_000_000
+    equipment_capital_expenditure_usd: 40_000_000_000
+    building_capital_expenditure_usd: 15_000_000_000
+    data_center_it_power_mw: 36
+    data_center_pue: 1.3
+    interconnection_cost_usd_per_km: 3000000
+    n_sites: 500
+  region_36:
+    region_id: 36
+    campus_size_square_ft: 4_000_000
+    equipment_capital_expenditure_usd: 40_000_000_000
+    building_capital_expenditure_usd: 15_000_000_000
+    data_center_it_power_mw: 36
+    data_center_pue: 1.3
+    interconnection_cost_usd_per_km: 3000000
+    n_sites: 500
+  region_37:
+    region_id: 37
+    campus_size_square_ft: 4_000_000
+    equipment_capital_expenditure_usd: 40_000_000_000
+    building_capital_expenditure_usd: 15_000_000_000
+    data_center_it_power_mw: 36
+    data_center_pue: 1.3
+    interconnection_cost_usd_per_km: 3000000
+    n_sites: 500
+  region_38:
+    region_id: 38
+    campus_size_square_ft: 4_000_000
+    equipment_capital_expenditure_usd: 40_000_000_000
+    building_capital_expenditure_usd: 15_000_000_000
+    data_center_it_power_mw: 36
+    data_center_pue: 1.3
+    interconnection_cost_usd_per_km: 3000000
+    n_sites: 500
+  region_39:
+    region_id: 39
+    campus_size_square_ft: 4_000_000
+    equipment_capital_expenditure_usd: 40_000_000_000
+    building_capital_expenditure_usd: 15_000_000_000
+    data_center_it_power_mw: 36
+    data_center_pue: 1.3
+    interconnection_cost_usd_per_km: 3000000
+    n_sites: 500
+  region_40:
+    region_id: 40
+    campus_size_square_ft: 4_000_000
+    equipment_capital_expenditure_usd: 40_000_000_000
+    building_capital_expenditure_usd: 15_000_000_000
+    data_center_it_power_mw: 36
+    data_center_pue: 1.3
+    interconnection_cost_usd_per_km: 3000000
+    n_sites: 500
+  region_41:
+    region_id: 41
+    campus_size_square_ft: 4_000_000
+    equipment_capital_expenditure_usd: 40_000_000_000
+    building_capital_expenditure_usd: 15_000_000_000
+    data_center_it_power_mw: 36
+    data_center_pue: 1.3
+    interconnection_cost_usd_per_km: 3000000
+    n_sites: 500
+  region_42:
+    region_id: 42
+    campus_size_square_ft: 4_000_000
+    equipment_capital_expenditure_usd: 40_000_000_000
+    building_capital_expenditure_usd: 15_000_000_000
+    data_center_it_power_mw: 36
+    data_center_pue: 1.3
+    interconnection_cost_usd_per_km: 3000000
+    n_sites: 500
+  region_44:
+    region_id: 44
+    campus_size_square_ft: 4_000_000
+    equipment_capital_expenditure_usd: 40_000_000_000
+    building_capital_expenditure_usd: 15_000_000_000
+    data_center_it_power_mw: 36
+    data_center_pue: 1.3
+    interconnection_cost_usd_per_km: 3000000
+    n_sites: 500
+  region_45:
+    region_id: 45
+    campus_size_square_ft: 4_000_000
+    equipment_capital_expenditure_usd: 40_000_000_000
+    building_capital_expenditure_usd: 15_000_000_000
+    data_center_it_power_mw: 36
+    data_center_pue: 1.3
+    interconnection_cost_usd_per_km: 3000000
+    n_sites: 500
+  region_46:
+    region_id: 46
+    campus_size_square_ft: 4_000_000
+    equipment_capital_expenditure_usd: 40_000_000_000
+    building_capital_expenditure_usd: 15_000_000_000
+    data_center_it_power_mw: 36
+    data_center_pue: 1.3
+    interconnection_cost_usd_per_km: 3000000
+    n_sites: 500
+  region_47:
+    region_id: 47
+    campus_size_square_ft: 4_000_000
+    equipment_capital_expenditure_usd: 40_000_000_000
+    building_capital_expenditure_usd: 15_000_000_000
+    data_center_it_power_mw: 36
+    data_center_pue: 1.3
+    interconnection_cost_usd_per_km: 3000000
+    n_sites: 500
+  region_48:
+    region_id: 48
+    campus_size_square_ft: 4_000_000
+    equipment_capital_expenditure_usd: 40_000_000_000
+    building_capital_expenditure_usd: 15_000_000_000
+    data_center_it_power_mw: 36
+    data_center_pue: 1.3
+    interconnection_cost_usd_per_km: 3000000
+    n_sites: 500
+  region_49:
+    region_id: 49
+    campus_size_square_ft: 4_000_000
+    equipment_capital_expenditure_usd: 40_000_000_000
+    building_capital_expenditure_usd: 15_000_000_000
+    data_center_it_power_mw: 36
+    data_center_pue: 1.3
+    interconnection_cost_usd_per_km: 3000000
+    n_sites: 500
+  region_50:
+    region_id: 50
+    campus_size_square_ft: 4_000_000
+    equipment_capital_expenditure_usd: 40_000_000_000
+    building_capital_expenditure_usd: 15_000_000_000
+    data_center_it_power_mw: 36
+    data_center_pue: 1.3
+    interconnection_cost_usd_per_km: 3000000
+    n_sites: 500
+  region_51:
+    region_id: 51
+    campus_size_square_ft: 4_000_000
+    equipment_capital_expenditure_usd: 40_000_000_000
+    building_capital_expenditure_usd: 15_000_000_000
+    data_center_it_power_mw: 36
+    data_center_pue: 1.3
+    interconnection_cost_usd_per_km: 3000000
+    n_sites: 500
+  region_53:
+    region_id: 53
+    campus_size_square_ft: 4_000_000
+    equipment_capital_expenditure_usd: 40_000_000_000
+    building_capital_expenditure_usd: 15_000_000_000
+    data_center_it_power_mw: 36
+    data_center_pue: 1.3
+    interconnection_cost_usd_per_km: 3000000
+    n_sites: 500
+  region_54:
+    region_id: 54
+    campus_size_square_ft: 4_000_000
+    equipment_capital_expenditure_usd: 40_000_000_000
+    building_capital_expenditure_usd: 15_000_000_000
+    data_center_it_power_mw: 36
+    data_center_pue: 1.3
+    interconnection_cost_usd_per_km: 3000000
+    n_sites: 500
+  region_55:
+    region_id: 55
+    campus_size_square_ft: 4_000_000
+    equipment_capital_expenditure_usd: 40_000_000_000
+    building_capital_expenditure_usd: 15_000_000_000
+    data_center_it_power_mw: 36
+    data_center_pue: 1.3
+    interconnection_cost_usd_per_km: 3000000
+    n_sites: 500
+  region_56:
+    region_id: 56
+    campus_size_square_ft: 4_000_000
+    equipment_capital_expenditure_usd: 40_000_000_000
+    building_capital_expenditure_usd: 15_000_000_000
+    data_center_it_power_mw: 36
+    data_center_pue: 1.3
+    interconnection_cost_usd_per_km: 3000000
+    n_sites: 500
+  region_90:
+    region_id: 90
+    campus_size_square_ft: 4_000_000
+    equipment_capital_expenditure_usd: 40_000_000_000
+    building_capital_expenditure_usd: 15_000_000_000
+    data_center_it_power_mw: 36
+    data_center_pue: 1.3
+    interconnection_cost_usd_per_km: 3000000
+    n_sites: 500
+  region_91:
+    region_id: 91
+    campus_size_square_ft: 4_000_000
+    equipment_capital_expenditure_usd: 40_000_000_000
+    building_capital_expenditure_usd: 15_000_000_000
+    data_center_it_power_mw: 36
+    data_center_pue: 1.3
+    interconnection_cost_usd_per_km: 3000000
+    n_sites: 500
+  region_92:
+    region_id: 92
+    campus_size_square_ft: 4_000_000
+    equipment_capital_expenditure_usd: 40_000_000_000
+    building_capital_expenditure_usd: 15_000_000_000
+    data_center_it_power_mw: 36
+    data_center_pue: 1.3
+    interconnection_cost_usd_per_km: 3000000
+    n_sites: 500
+  region_93:
+    region_id: 93
+    campus_size_square_ft: 4_000_000
+    equipment_capital_expenditure_usd: 40_000_000_000
+    building_capital_expenditure_usd: 15_000_000_000
+    data_center_it_power_mw: 36
+    data_center_pue: 1.3
+    interconnection_cost_usd_per_km: 3000000
+    n_sites: 500
+  region_94:
+    region_id: 94
+    campus_size_square_ft: 4_000_000
+    equipment_capital_expenditure_usd: 40_000_000_000
+    building_capital_expenditure_usd: 15_000_000_000
+    data_center_it_power_mw: 36
+    data_center_pue: 1.3
+    interconnection_cost_usd_per_km: 3000000
+    n_sites: 500
+  region_95:
+    region_id: 95
+    campus_size_square_ft: 4_000_000
+    equipment_capital_expenditure_usd: 40_000_000_000
+    building_capital_expenditure_usd: 15_000_000_000
+    data_center_it_power_mw: 36
+    data_center_pue: 1.3
+    interconnection_cost_usd_per_km: 3000000
+    n_sites: 500
+  region_96:
+    region_id: 96
+    campus_size_square_ft: 4_000_000
+    equipment_capital_expenditure_usd: 40_000_000_000
+    building_capital_expenditure_usd: 15_000_000_000
+    data_center_it_power_mw: 36
+    data_center_pue: 1.3
+    interconnection_cost_usd_per_km: 3000000
+    n_sites: 500
+  region_97:
+    region_id: 97
+    campus_size_square_ft: 4_000_000
+    equipment_capital_expenditure_usd: 40_000_000_000
+    building_capital_expenditure_usd: 15_000_000_000
+    data_center_it_power_mw: 36
+    data_center_pue: 1.3
+    interconnection_cost_usd_per_km: 3000000
+    n_sites: 500
+  region_98:
+    region_id: 98
+    campus_size_square_ft: 4_000_000
+    equipment_capital_expenditure_usd: 40_000_000_000
+    building_capital_expenditure_usd: 15_000_000_000
+    data_center_it_power_mw: 36
+    data_center_pue: 1.3
+    interconnection_cost_usd_per_km: 3000000
+    n_sites: 500
+  region_99:
+    region_id: 99
+    campus_size_square_ft: 4_000_000
+    equipment_capital_expenditure_usd: 40_000_000_000
+    building_capital_expenditure_usd: 15_000_000_000
+    data_center_it_power_mw: 36
+    data_center_pue: 1.3
+    interconnection_cost_usd_per_km: 3000000
+    n_sites: 500
+
+

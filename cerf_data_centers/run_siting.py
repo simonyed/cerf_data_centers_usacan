@@ -8,11 +8,21 @@ import os
 import sys
 from pathlib import Path
 
-from .load_data import load_region_raster, load_raster_array, collect_constraints, get_yaml
+import numpy as np
+
+from .load_data import (
+    load_region_raster,
+    load_raster_array,
+    collect_constraints,
+    find_region_window,
+    get_yaml,
+    validate_raster_alignment,
+)
 from .calculate_locational_cost import calculate_locational_cost
 from .determine_sites import get_region_suit_array, build_graph, site_based_on_siting_score
 from .calculate_gravity_score import calc_gravity_array_from_distance, calc_gravity_score
 from .configure_output import configure_output
+from .postprocess_output import generate_output_artifacts
 from .utils import convert_sqft_to_grid_cells, get_normalized_value
 
 
@@ -69,28 +79,60 @@ def run(config: str) -> gpd.GeoDataFrame:
     constraint_dict = config_dict['constraints']
     market_dict = config_dict['market_gravity']
     expansion_dict = config_dict['expansion_plan']
+    selected_region_ids = settings_dict.get(
+        'selected_region_ids',
+        [region_cfg['region_id'] for region_cfg in expansion_dict.values()]
+    )
 
     # get cost and constraint layers as lists
     raster_names = list(constraint_dict.keys())
     raster_paths = list(constraint_dict.values())
+    all_raster_paths = [
+        settings_dict['region_raster_path'],
+        settings_dict['siting_raster_path'],
+        market_dict['market_raster_path'],
+        *raster_paths,
+    ]
+
+    logger.info("Validating raster alignment...")
+    validate_raster_alignment(settings_dict['region_raster_path'], all_raster_paths[1:])
+
+    logger.info(f"Computing minimum raster window for selected regions: {selected_region_ids}")
+    region_window = find_region_window(settings_dict['region_raster_path'], selected_region_ids)
+    logger.info(
+        "Using raster window row_off=%s col_off=%s height=%s width=%s",
+        int(region_window.row_off),
+        int(region_window.col_off),
+        int(region_window.height),
+        int(region_window.width),
+    )
 
     # load region array
     logger.info(f"Loading region raster from {settings_dict['region_raster_path']}")
-    region_array, transform = load_region_raster(settings_dict['region_raster_path'])
+    region_array, transform = load_region_raster(settings_dict['region_raster_path'], window=region_window)
 
     # load suitability array
     logger.info(f"Loading siting suitability raster from {settings_dict['siting_raster_path']}")
-    suit_array = load_raster_array(raster_fn = settings_dict['siting_raster_path'])
+    suit_array = load_raster_array(raster_fn=settings_dict['siting_raster_path'], window=region_window)
+    batch_region_mask = np.isin(region_array, selected_region_ids)
+    batch_suit_array = np.where(batch_region_mask, suit_array, 0)
 
     # load cost and constraint arrays in suitable grid cells
-    node_values = collect_constraints(suit_array, transform, raster_paths, raster_names, logger)
+    node_values = collect_constraints(
+        batch_suit_array,
+        transform,
+        raster_paths,
+        raster_names,
+        logger,
+        window=region_window,
+    )
 
     # load market size and distance to market
-    market_array = load_raster_array(raster_fn = market_dict['market_raster_path'])
+    market_array = load_raster_array(raster_fn=market_dict['market_raster_path'], window=region_window)
 
     logger.info(f"Calculating market gravity multipliers...")
     # get the gravity multiplier array based on distance to market and market size
-    gravity_multiplier_array = calc_gravity_array_from_distance(market_array, suit_array)
+    gravity_multiplier_array = calc_gravity_array_from_distance(market_array, batch_suit_array)
 
     logger.info("Starting siting process...")
     output_gdf = gpd.GeoDataFrame()
@@ -118,11 +160,14 @@ def run(config: str) -> gpd.GeoDataFrame:
 
         # get suitable siting areas for region
         logger.info(f"Extracting suitable siting areas...")
-        region_suit_array = get_region_suit_array(region_array, suit_array, region_id)
+        region_suit_array = get_region_suit_array(region_array, batch_suit_array, region_id)
 
         # build connected component graph of suitable areas that meet minimum size criteria
         logger.info(f"Building siting graph...")
         G = build_graph(region_suit_array, min_block_size, raster_names, node_values)
+        if G.number_of_nodes() == 0:
+            logger.warning(f"No suitable connected components met the minimum block size for region {region_name}.")
+            continue
         
         # calculate locational cost in each suitable grid cell
         logger.info(f"Calculating locational costs...")
@@ -196,6 +241,9 @@ def run(config: str) -> gpd.GeoDataFrame:
     if settings_dict.get('output_file'):
         logger.info(f"Saving output to {settings_dict['output_file']}")
         output_gdf.to_file(settings_dict['output_file'])
+        html_path, csv_path = generate_output_artifacts(settings_dict['output_file'])
+        logger.info(f"Saved HTML map to {html_path}")
+        logger.info(f"Saved CSV to {csv_path}")
 
     logger.info(f"All regions processed in {round((time.time() - t0)/60, 2)} minutes.")
 
@@ -246,6 +294,9 @@ def site(config: Path, output: Path, verbose: bool, log_file: Path):
         if output:
             logger.info(f"Saving output to {output}")
             output_gdf.to_file(output)
+            html_path, csv_path = generate_output_artifacts(output)
+            logger.info(f"Saved HTML map to {html_path}")
+            logger.info(f"Saved CSV to {csv_path}")
 
     except Exception as e:
         logger.error(f"Error running data center siting: {str(e)}")

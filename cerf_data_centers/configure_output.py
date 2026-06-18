@@ -31,6 +31,19 @@ def configure_output(
     it_list, put_list, mcf_list,wcf_list, mec_list, mgy_list, mgyc_list, ekwh_list, ppt_list = [], [], [], [], [],[], [], [], []
     rpt_list, st_list, ikm_list, pc_list, ec_list, tpt_list, tst_list, ic_list = [], [], [], [], [], [], [], []
     ngs_list, nlc_list, wss_list = [], [], []
+    int_it_energy_demand_mwh_list = []
+    int_total_facility_energy_demand_mwh_list = []
+    int_overhead_energy_demand_mwh_list = []
+    int_facility_overhead_energy_demand_mwh_list = []
+    int_cooling_energy_demand_mwh_list = []
+    int_mechanical_cooling_energy_mwh_list = []
+    int_water_cooling_energy_mwh_list = []
+    int_total_electricity_demand_mwh_list = []
+    int_land_building_cost_usd_list = []
+    int_real_property_taxes_usd_list = []
+    int_personal_property_taxes_usd_list = []
+    int_equipment_sales_tax_usd_list = []
+    int_energy_sales_tax_usd_list = []
 
     for i in range(len(result_list)):
         c = result_list[i][i]['coord_list']
@@ -61,6 +74,19 @@ def configure_output(
         ngs = result_list[i][i]['normalized_gravity_score']
         nlc = result_list[i][i]['normalized_locational_cost']
         wss = result_list[i][i]['weighted_siting_score']
+        int_it_energy_demand_mwh = result_list[i][i]['int_it_energy_demand_mwh']
+        int_total_facility_energy_demand_mwh = result_list[i][i]['int_total_facility_energy_demand_mwh']
+        int_overhead_energy_demand_mwh = result_list[i][i]['int_overhead_energy_demand_mwh']
+        int_facility_overhead_energy_demand_mwh = result_list[i][i]['int_facility_overhead_energy_demand_mwh']
+        int_cooling_energy_demand_mwh = result_list[i][i]['int_cooling_energy_demand_mwh']
+        int_mechanical_cooling_energy_mwh = result_list[i][i]['int_mechanical_cooling_energy_mwh']
+        int_water_cooling_energy_mwh = result_list[i][i]['int_water_cooling_energy_mwh']
+        int_total_electricity_demand_mwh = result_list[i][i]['int_total_electricity_demand_mwh']
+        int_land_building_cost_usd = result_list[i][i]['int_land_building_cost_usd']
+        int_real_property_taxes_usd = result_list[i][i]['int_real_property_taxes_usd']
+        int_personal_property_taxes_usd = result_list[i][i]['int_personal_property_taxes_usd']
+        int_equipment_sales_tax_usd = result_list[i][i]['int_equipment_sales_tax_usd']
+        int_energy_sales_tax_usd = result_list[i][i]['int_energy_sales_tax_usd']
 
         for j in c:
             i_list.append(str(region_id) + "_" + str(i))
@@ -91,6 +117,19 @@ def configure_output(
             ngs_list.append(ngs)
             nlc_list.append(nlc)
             wss_list.append(wss)
+            int_it_energy_demand_mwh_list.append(int_it_energy_demand_mwh)
+            int_total_facility_energy_demand_mwh_list.append(int_total_facility_energy_demand_mwh)
+            int_overhead_energy_demand_mwh_list.append(int_overhead_energy_demand_mwh)
+            int_facility_overhead_energy_demand_mwh_list.append(int_facility_overhead_energy_demand_mwh)
+            int_cooling_energy_demand_mwh_list.append(int_cooling_energy_demand_mwh)
+            int_mechanical_cooling_energy_mwh_list.append(int_mechanical_cooling_energy_mwh)
+            int_water_cooling_energy_mwh_list.append(int_water_cooling_energy_mwh)
+            int_total_electricity_demand_mwh_list.append(int_total_electricity_demand_mwh)
+            int_land_building_cost_usd_list.append(int_land_building_cost_usd)
+            int_real_property_taxes_usd_list.append(int_real_property_taxes_usd)
+            int_personal_property_taxes_usd_list.append(int_personal_property_taxes_usd)
+            int_equipment_sales_tax_usd_list.append(int_equipment_sales_tax_usd)
+            int_energy_sales_tax_usd_list.append(int_energy_sales_tax_usd)
 
     data = {
         'id': i_list,
@@ -120,7 +159,20 @@ def configure_output(
         'interconnection_cost_usd': ic_list,
         'normalized_gravity_score': ngs_list,
         'normalized_locational_cost': nlc_list,
-        'weighted_siting_score': wss_list
+        'weighted_siting_score': wss_list,
+        'int_it_energy_demand_mwh': int_it_energy_demand_mwh_list,
+        'int_total_facility_energy_demand_mwh': int_total_facility_energy_demand_mwh_list,
+        'int_overhead_energy_demand_mwh': int_overhead_energy_demand_mwh_list,
+        'int_facility_overhead_energy_demand_mwh': int_facility_overhead_energy_demand_mwh_list,
+        'int_cooling_energy_demand_mwh': int_cooling_energy_demand_mwh_list,
+        'int_mechanical_cooling_energy_mwh': int_mechanical_cooling_energy_mwh_list,
+        'int_water_cooling_energy_mwh': int_water_cooling_energy_mwh_list,
+        'int_total_electricity_demand_mwh': int_total_electricity_demand_mwh_list,
+        'int_land_building_cost_usd': int_land_building_cost_usd_list,
+        'int_real_property_taxes_usd': int_real_property_taxes_usd_list,
+        'int_personal_property_taxes_usd': int_personal_property_taxes_usd_list,
+        'int_equipment_sales_tax_usd': int_equipment_sales_tax_usd_list,
+        'int_energy_sales_tax_usd': int_energy_sales_tax_usd_list,
     }
     df = pd.DataFrame.from_dict(data)
 

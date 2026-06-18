@@ -141,6 +141,20 @@ def calculate_locational_cost(
         'total_property_tax_usd': total_property_tax_usd,
         'total_sales_tax_usd': total_sales_tax_usd,
         'interconnection_cost_usd': interconnection_cost_usd,
+
+        'int_it_energy_demand_mwh': it_energy_demand_mwh,
+        'int_total_facility_energy_demand_mwh': total_facility_energy_demand_mwh,
+        'int_overhead_energy_demand_mwh': overhead_energy_demand_mwh,
+        'int_facility_overhead_energy_demand_mwh': facility_overhead_energy_demand_mwh,
+        'int_cooling_energy_demand_mwh': cooling_energy_demand_mwh,
+        'int_mechanical_cooling_energy_mwh': mechanical_cooling_energy_mwh,
+        'int_water_cooling_energy_mwh': water_cooling_energy_mwh,
+        'int_total_electricity_demand_mwh': total_electricity_demand_mwh,
+        'int_land_building_cost_usd': land_building_cost_usd,
+        'int_real_property_taxes_usd': real_property_taxes_usd,
+        'int_personal_property_taxes_usd': personal_property_taxes_usd,
+        'int_equipment_sales_tax_usd': equipment_sales_tax_usd,
+        'int_energy_sales_tax_usd': energy_sales_tax_usd,
     }
 
     return sum(total_cost_usd), parameter_dict
