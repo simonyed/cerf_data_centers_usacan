@@ -87,7 +87,8 @@ The configuration file should be in YAML format and include the following sectio
 
 - `settings`: General settings including paths to input files
 - `constraints`: Cost and constraint layers
-- `expansion_plan`: Data center specifications for each region
+- `scenarios`: Optional shared data center scenarios
+- `expansion_plan`: Region list and optional per-region overrides
 
 Example configuration structure:
 ```yaml
@@ -101,17 +102,38 @@ constraints:
   electricity_rate_per_kwh: "path/to/electricity.tif"
   # ... other constraint layers
 
+scenarios:
+  large:
+    campus_size_square_ft: 2000000
+    equipment_capital_expenditure_usd: 2000000000
+    building_capital_expenditure_usd: 1000000000
+    data_center_it_power_mw: 20
+    data_center_pue: 1.3
+    interconnection_cost_usd_per_km: 1000
+    n_sites: 5
+  medium:
+    campus_size_square_ft: 1000000
+    equipment_capital_expenditure_usd: 1000000000
+    building_capital_expenditure_usd: 500000000
+    data_center_it_power_mw: 10
+    data_center_pue: 1.4
+    interconnection_cost_usd_per_km: 1000
+    n_sites: 5
+  small:
+    campus_size_square_ft: 500000
+    equipment_capital_expenditure_usd: 500000000
+    building_capital_expenditure_usd: 250000000
+    data_center_it_power_mw: 5
+    data_center_pue: 1.5
+    interconnection_cost_usd_per_km: 1000
+    n_sites: 5
+
 expansion_plan:
   region_name:
     region_id: 1
-    campus_size_square_ft: 1000000
-    equipment_capital_expenditure: 1000000
-    building_capital_expenditure: 500000
-    data_center_power_mw: 10
-    pue: 1.5
-    interconnection_cost_km: 1000
-    n_sites: 1
 ```
+
+When `scenarios` is present, each region runs once per scenario. `n_sites` controls how many candidate sites are generated for each scenario, and the final merged output drops overlapping smaller sites in favor of larger ones.
 
 ## Python API
 

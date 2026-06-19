@@ -10,6 +10,7 @@ import types
 import numpy as np
 import rasterio
 from rasterio.transform import from_origin
+from shapely.geometry import box
 import warnings
 import cerf_data_centers.run_siting
 
@@ -143,3 +144,57 @@ def test_cli_site_help():
     result = runner.invoke(run_siting.site, ["--help"])
     assert result.exit_code == 0
     assert "Run the data center siting process" in result.output
+
+
+def test_resolve_region_scenarios_uses_global_scenarios():
+    region_dict = {"region_id": 1}
+    scenarios = {
+        "large": {"campus_size_square_ft": 300, "n_sites": 2},
+        "small": {"campus_size_square_ft": 100, "n_sites": 5},
+    }
+
+    resolved = run_siting._resolve_region_scenarios("region_01", region_dict, scenarios)
+
+    assert [name for name, _ in resolved] == ["large", "small"]
+    assert resolved[0][1]["region_id"] == 1
+    assert resolved[0][1]["campus_size_square_ft"] == 300
+    assert resolved[1][1]["campus_size_square_ft"] == 100
+
+
+def test_resolve_region_scenarios_supports_legacy_region_config():
+    region_dict = {
+        "region_id": 1,
+        "campus_size_square_ft": 100,
+        "equipment_capital_expenditure_usd": 1000,
+        "building_capital_expenditure_usd": 500,
+        "data_center_it_power_mw": 1,
+        "data_center_pue": 1.2,
+        "interconnection_cost_usd_per_km": 10,
+        "n_sites": 1,
+    }
+
+    resolved = run_siting._resolve_region_scenarios("region_01", region_dict, None)
+
+    assert resolved == [("default", region_dict)]
+
+
+def test_drop_overlapping_smaller_sites_prefers_larger_site():
+    gdf = gpd.GeoDataFrame(
+        {
+            "id": ["small", "large", "other"],
+            "campus_size_square_ft": [100, 300, 50],
+            "data_center_it_power_mw": [1, 3, 1],
+            "total_capex_cost": [10, 30, 5],
+            "geometry": [
+                box(0, 0, 10, 10),
+                box(5, 5, 15, 15),
+                box(20, 20, 25, 25),
+            ],
+        },
+        geometry="geometry",
+        crs="ESRI:102003",
+    )
+
+    filtered = run_siting._drop_overlapping_smaller_sites(gdf)
+
+    assert list(filtered["id"]) == ["large", "other"]

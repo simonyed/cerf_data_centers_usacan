@@ -7,179 +7,108 @@ from shapely.geometry import Point
 
 def configure_output(
     result_list: List[Dict[int, Dict[str, Any]]],
-    region_id: int
+    region_id: int,
+    output_prefix: str | None = None,
+    extra_fields: dict[str, Any] | None = None,
 ) -> gpd.GeoDataFrame:
     """
-    Configure the siting results into a GeoDataFrame with buffered geometries.
-
-    Args:
-        result_list (List[Dict[int, Dict[str, Any]]]): 
-            A list where each element is a dictionary keyed by an integer, 
-            containing siting results for each region. Each siting result 
-            dictionary should have the keys 'coord_list', 'locational_cost', 
-            and 'region_name'.
-        region_id (int): 
-            The ID of the region for which to configure the output.
-
-    Returns:
-        gpd.GeoDataFrame: 
-            A GeoDataFrame containing the siting results, including 
-            coordinates, region name, cost, and buffered geometries 
-            dissolved by data center ID.
+    Configure siting results into a GeoDataFrame with only the requested
+    output fields.
     """
-    i_list, x_list, y_list, loc_cost_musd_list, r_list, cs_list, ex_list, bx_list = [], [], [], [], [], [], [], []
-    it_list, put_list, mcf_list,wcf_list, mec_list, mgy_list, mgyc_list, ekwh_list, ppt_list = [], [], [], [], [],[], [], [], []
-    rpt_list, st_list, ikm_list, pc_list, ec_list, tpt_list, tst_list, ic_list = [], [], [], [], [], [], [], []
-    ngs_list, nlc_list, wss_list = [], [], []
-    int_it_energy_demand_mwh_list = []
-    int_total_facility_energy_demand_mwh_list = []
-    int_overhead_energy_demand_mwh_list = []
-    int_facility_overhead_energy_demand_mwh_list = []
-    int_cooling_energy_demand_mwh_list = []
-    int_mechanical_cooling_energy_mwh_list = []
-    int_water_cooling_energy_mwh_list = []
-    int_total_electricity_demand_mwh_list = []
-    int_land_building_cost_usd_list = []
-    int_real_property_taxes_usd_list = []
-    int_personal_property_taxes_usd_list = []
-    int_equipment_sales_tax_usd_list = []
-    int_energy_sales_tax_usd_list = []
+    if not result_list:
+        return gpd.GeoDataFrame(
+            columns=[
+                'id',
+                'region',
+                'xcoord',
+                'ycoord',
+                'scenario',
+                'campus_size_square_ft',
+                'data_center_it_power_mw',
+                'locational_cost',
+                'locational_cost_million_usd',
+                'land_cost_usd_per_sqft',
+                'building_capex_usd',
+                'real_property_tax_rate',
+                'personal_prop_tax_rate',
+                'sales_tax_rate',
+                'land_building_cost_usd',
+                'equipment_capex_usd',
+                'real_property_taxes_usd',
+                'personal_property_taxes_usd',
+                'equipment_sales_tax_usd',
+                'interconnection cost',
+                'total_capex_cost',
+                'geometry',
+            ],
+            geometry='geometry',
+            crs='ESRI:102003',
+        )
+
+    rows = []
+    extra_fields = extra_fields or {}
 
     for i in range(len(result_list)):
-        c = result_list[i][i]['coord_list']
-        n = result_list[i][i]['locational_cost']
-        # Convert to millions and round to 4 decimals
-        n_musd = round(n / 1_000_000, 4)
-        r = result_list[i][i]['region_name']
-        cs = result_list[i][i]['campus_size_square_ft']
-        ex = result_list[i][i]['equipment_capex']
-        bx = result_list[i][i]['building_capex']
-        it = result_list[i][i]['it_power_mw']
-        put = result_list[i][i]['pue']
-        mcf = result_list[i][i]['mechanical_cooling_frac']
-        wcf = result_list[i][i]['water_cooling_frac']
-        mec = result_list[i][i]['cooling_energy_demand_mwh']
-        mgy = result_list[i][i]['cooling_water_demand_mgy']
-        mgyc = result_list[i][i]['cooling_water_consumption_mgy']
-        ekwh = result_list[i][i]['elec_rate_per_kwh']
-        ppt = result_list[i][i]['personal_prop_tax_rate']
-        rpt = result_list[i][i]['real_property_tax_rate']
-        st = result_list[i][i]['sales_tax_rate']
-        ikm = result_list[i][i]['interconnection_distance_km']
-        pc = result_list[i][i]['property_cost_usd']
-        ec = result_list[i][i]['electricity_cost_usd']
-        tpt = result_list[i][i]['total_property_tax_usd']
-        tst = result_list[i][i]['total_sales_tax_usd']
-        ic = result_list[i][i]['interconnection_cost_usd']
-        ngs = result_list[i][i]['normalized_gravity_score']
-        nlc = result_list[i][i]['normalized_locational_cost']
-        wss = result_list[i][i]['weighted_siting_score']
-        int_it_energy_demand_mwh = result_list[i][i]['int_it_energy_demand_mwh']
-        int_total_facility_energy_demand_mwh = result_list[i][i]['int_total_facility_energy_demand_mwh']
-        int_overhead_energy_demand_mwh = result_list[i][i]['int_overhead_energy_demand_mwh']
-        int_facility_overhead_energy_demand_mwh = result_list[i][i]['int_facility_overhead_energy_demand_mwh']
-        int_cooling_energy_demand_mwh = result_list[i][i]['int_cooling_energy_demand_mwh']
-        int_mechanical_cooling_energy_mwh = result_list[i][i]['int_mechanical_cooling_energy_mwh']
-        int_water_cooling_energy_mwh = result_list[i][i]['int_water_cooling_energy_mwh']
-        int_total_electricity_demand_mwh = result_list[i][i]['int_total_electricity_demand_mwh']
-        int_land_building_cost_usd = result_list[i][i]['int_land_building_cost_usd']
-        int_real_property_taxes_usd = result_list[i][i]['int_real_property_taxes_usd']
-        int_personal_property_taxes_usd = result_list[i][i]['int_personal_property_taxes_usd']
-        int_equipment_sales_tax_usd = result_list[i][i]['int_equipment_sales_tax_usd']
-        int_energy_sales_tax_usd = result_list[i][i]['int_energy_sales_tax_usd']
+        result = result_list[i][i]
+        output_id = f"{output_prefix}_{i}" if output_prefix else f"{region_id}_{i}"
+        building_capex_usd = result.get('building_capex_usd', result.get('building_capex', 0))
+        equipment_capex_usd = result.get('equipment_capex_usd', result.get('equipment_capex', 0))
+        land_building_cost_usd = result.get(
+            'land_building_cost_usd',
+            result.get('property_cost_usd', 0) + building_capex_usd,
+        )
+        real_property_taxes_usd = result.get(
+            'real_property_taxes_usd',
+            result.get('total_property_tax_usd', 0),
+        )
+        personal_property_taxes_usd = result.get('personal_property_taxes_usd', 0)
+        equipment_sales_tax_usd = result.get(
+            'equipment_sales_tax_usd',
+            result.get('total_sales_tax_usd', 0),
+        )
+        interconnection_cost_usd = result.get('interconnection_cost_usd', 0)
+        total_capex_cost = result.get(
+            'total_capex_cost',
+            land_building_cost_usd +
+            equipment_capex_usd +
+            real_property_taxes_usd +
+            personal_property_taxes_usd +
+            equipment_sales_tax_usd +
+            interconnection_cost_usd,
+        )
 
-        for j in c:
-            i_list.append(str(region_id) + "_" + str(i))
-            x_list.append(j[0])
-            y_list.append(j[1])
-            r_list.append(r)
-            loc_cost_musd_list.append(n_musd)
-            cs_list.append(cs)
-            ex_list.append(ex)
-            bx_list.append(bx)
-            it_list.append(it)
-            put_list.append(put)
-            mcf_list.append(mcf)
-            wcf_list.append(wcf)
-            mec_list.append(mec)
-            mgy_list.append(mgy)
-            mgyc_list.append(mgyc)
-            ekwh_list.append(ekwh)
-            ppt_list.append(ppt)
-            rpt_list.append(rpt)
-            st_list.append(st)
-            ikm_list.append(ikm)
-            pc_list.append(pc)
-            ec_list.append(ec)
-            tpt_list.append(tpt)
-            tst_list.append(tst)
-            ic_list.append(ic)
-            ngs_list.append(ngs)
-            nlc_list.append(nlc)
-            wss_list.append(wss)
-            int_it_energy_demand_mwh_list.append(int_it_energy_demand_mwh)
-            int_total_facility_energy_demand_mwh_list.append(int_total_facility_energy_demand_mwh)
-            int_overhead_energy_demand_mwh_list.append(int_overhead_energy_demand_mwh)
-            int_facility_overhead_energy_demand_mwh_list.append(int_facility_overhead_energy_demand_mwh)
-            int_cooling_energy_demand_mwh_list.append(int_cooling_energy_demand_mwh)
-            int_mechanical_cooling_energy_mwh_list.append(int_mechanical_cooling_energy_mwh)
-            int_water_cooling_energy_mwh_list.append(int_water_cooling_energy_mwh)
-            int_total_electricity_demand_mwh_list.append(int_total_electricity_demand_mwh)
-            int_land_building_cost_usd_list.append(int_land_building_cost_usd)
-            int_real_property_taxes_usd_list.append(int_real_property_taxes_usd)
-            int_personal_property_taxes_usd_list.append(int_personal_property_taxes_usd)
-            int_equipment_sales_tax_usd_list.append(int_equipment_sales_tax_usd)
-            int_energy_sales_tax_usd_list.append(int_energy_sales_tax_usd)
+        scenario = extra_fields.get('scenario')
+        remaining_extra_fields = {k: v for k, v in extra_fields.items() if k != 'scenario'}
 
-    data = {
-        'id': i_list,
-        'region': r_list,
-        'xcoord': x_list,
-        'ycoord': y_list,
-        'locational_cost_million_usd': loc_cost_musd_list,
-        'campus_size_square_ft': cs_list,
-        'equipment_capex': ex_list,
-        'building_capex': bx_list,
-        'data_center_it_power_mw': it_list,
-        'data_center_pue': put_list,
-        'mechanical_cooling_frac': mcf_list,
-        'water_cooling_frac': wcf_list,
-        'cooling_energy_demand_mwh': mec_list,
-        'cooling_water_demand_mgy': mgy_list,
-        'cooling_water_consumption_mgy': mgyc_list,
-        'electricity_cost_per_kwh': ekwh_list,
-        'personal_prop_tax_rate': ppt_list,
-        'real_property_tax_rate': rpt_list,
-        'sales_tax_rate': st_list,
-        'interconnection_distance_km': ikm_list,
-        'property_cost_usd': pc_list,
-        'electricity_cost_usd': ec_list,
-        'total_property_tax_usd': tpt_list,
-        'total_sales_tax_usd': tst_list,
-        'interconnection_cost_usd': ic_list,
-        'normalized_gravity_score': ngs_list,
-        'normalized_locational_cost': nlc_list,
-        'weighted_siting_score': wss_list,
-        'int_it_energy_demand_mwh': int_it_energy_demand_mwh_list,
-        'int_total_facility_energy_demand_mwh': int_total_facility_energy_demand_mwh_list,
-        'int_overhead_energy_demand_mwh': int_overhead_energy_demand_mwh_list,
-        'int_facility_overhead_energy_demand_mwh': int_facility_overhead_energy_demand_mwh_list,
-        'int_cooling_energy_demand_mwh': int_cooling_energy_demand_mwh_list,
-        'int_mechanical_cooling_energy_mwh': int_mechanical_cooling_energy_mwh_list,
-        'int_water_cooling_energy_mwh': int_water_cooling_energy_mwh_list,
-        'int_total_electricity_demand_mwh': int_total_electricity_demand_mwh_list,
-        'int_land_building_cost_usd': int_land_building_cost_usd_list,
-        'int_real_property_taxes_usd': int_real_property_taxes_usd_list,
-        'int_personal_property_taxes_usd': int_personal_property_taxes_usd_list,
-        'int_equipment_sales_tax_usd': int_equipment_sales_tax_usd_list,
-        'int_energy_sales_tax_usd': int_energy_sales_tax_usd_list,
-    }
-    df = pd.DataFrame.from_dict(data)
+        for x, y in result['coord_list']:
+            rows.append({
+                'id': output_id,
+                'region': result['region_name'],
+                'xcoord': x,
+                'ycoord': y,
+                'scenario': scenario,
+                'campus_size_square_ft': result['campus_size_square_ft'],
+                'data_center_it_power_mw': result.get('it_power_mw'),
+                'locational_cost': result['locational_cost'],
+                'locational_cost_million_usd': round(result['locational_cost'] / 1_000_000, 4),
+                'land_cost_usd_per_sqft': result.get('land_cost_usd_per_sqft'),
+                'building_capex_usd': building_capex_usd,
+                'real_property_tax_rate': result['real_property_tax_rate'],
+                'personal_prop_tax_rate': result['personal_prop_tax_rate'],
+                'sales_tax_rate': result['sales_tax_rate'],
+                'land_building_cost_usd': land_building_cost_usd,
+                'equipment_capex_usd': equipment_capex_usd,
+                'real_property_taxes_usd': real_property_taxes_usd,
+                'personal_property_taxes_usd': personal_property_taxes_usd,
+                'equipment_sales_tax_usd': equipment_sales_tax_usd,
+                'interconnection cost': interconnection_cost_usd,
+                'total_capex_cost': total_capex_cost,
+                **remaining_extra_fields,
+            })
 
+    df = pd.DataFrame(rows)
     geometry = [Point(xy) for xy in zip(df['xcoord'], df['ycoord'])]
     gdf = gpd.GeoDataFrame(df, crs='ESRI:102003', geometry=geometry)
-
     gdf['geometry'] = gdf['geometry'].buffer(50, cap_style=3)
     gdf = gdf.dissolve(by='id', as_index=False)
-
     return gdf

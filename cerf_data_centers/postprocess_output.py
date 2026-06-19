@@ -99,9 +99,10 @@ HTML_TEMPLATE = """<!doctype html>
       zoomControl: true
     }});
 
-    L.tileLayer("https://tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png", {{
-      maxZoom: 19,
-      attribution: "&copy; OpenStreetMap contributors"
+    L.tileLayer("https://{{s}}.basemaps.cartocdn.com/light_nolabels/{{z}}/{{x}}/{{y}}{{r}}.png", {{
+      subdomains: "abcd",
+      maxZoom: 20,
+      attribution: "&copy; OpenStreetMap contributors &copy; CARTO"
     }}).addTo(map);
 
     function numberFormat(value) {{
@@ -113,19 +114,20 @@ HTML_TEMPLATE = """<!doctype html>
       const rows = [
         ["ID", properties.id],
         ["Region", properties.region],
-        ["Locational Cost (M USD)", numberFormat(properties.locational_cost_million_usd)],
-        ["Weighted Siting Score", numberFormat(properties.weighted_siting_score)],
-        ["Interconnection Distance (km)", numberFormat(properties.interconnection_distance_km)],
-        ["Electricity Cost (USD)", numberFormat(properties.electricity_cost_usd)]
+        ["Campus Size (sq ft)", numberFormat(properties.campus_size_square_ft)],
+        ["Land Building Cost (USD)", numberFormat(properties.land_building_cost_usd)],
+        ["Equipment Capex (USD)", numberFormat(properties.equipment_capex_usd)],
+        ["Interconnection Cost", numberFormat(properties["interconnection cost"])],
+        ["Total Capex Cost", numberFormat(properties.total_capex_cost)]
       ];
       return rows.map(([label, value]) => `<strong>${{label}}:</strong> ${{value}}`).join("<br>");
     }}
 
     const layer = L.geoJSON(geojson, {{
       style: () => ({{
-        color: "#0f766e",
+        color: "#b91c1c",
         weight: 2,
-        fillColor: "#14b8a6",
+        fillColor: "#ef4444",
         fillOpacity: 0.35
       }}),
       onEachFeature: (feature, featureLayer) => {{
@@ -176,9 +178,9 @@ def render_geojson_map_html(geojson_path: str | Path, html_path: str | Path | No
         ("Feature count", str(len(gdf))),
         ("Region", region_metric),
         ("Site ID", str(first["id"])),
-        ("Locational cost (M USD)", f"{first['locational_cost_million_usd']:.4f}"),
-        ("Weighted siting score", f"{first['weighted_siting_score']:.6f}"),
-        ("Interconnection distance (km)", f"{first['interconnection_distance_km']:.4f}"),
+        ("Campus size (sq ft)", f"{first['campus_size_square_ft']:.0f}"),
+        ("Land building cost (USD)", f"{first['land_building_cost_usd']:.4f}"),
+        ("Total capex cost (USD)", f"{first['total_capex_cost']:.4f}"),
     ]
     metrics_html = "\n".join(
         f'<div class="metric"><strong>{label}</strong>{value}</div>'

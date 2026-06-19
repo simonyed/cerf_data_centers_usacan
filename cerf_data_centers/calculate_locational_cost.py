@@ -107,6 +107,15 @@ def calculate_locational_cost(
     # Interconnection costs
     interconnection_cost_usd = interconnection_distance_km * interconnection_cost_usd_per_km
 
+    total_capex_cost_usd = (
+        land_building_cost_usd +
+        equipment_capex_usd +
+        real_property_taxes_usd +
+        personal_property_taxes_usd +
+        equipment_sales_tax_usd +
+        interconnection_cost_usd
+    )
+
     # Total cost
     total_cost_usd = [
         land_building_cost_usd +
@@ -119,8 +128,11 @@ def calculate_locational_cost(
 
     parameter_dict: Dict[str, float] = {
         'campus_size_square_ft': campus_size_square_ft,
+        'land_cost_usd_per_sqft': land_cost_usd_per_sqft,
         'equipment_capex': equipment_capex_usd,
+        'equipment_capex_usd': equipment_capex_usd,
         'building_capex': building_capex_usd,
+        'building_capex_usd': building_capex_usd,
         'it_power_mw': data_center_it_power_mw,
         'pue': data_center_pue,
         'mechanical_cooling_frac': mechanical_cool_fraction,
@@ -141,6 +153,11 @@ def calculate_locational_cost(
         'total_property_tax_usd': total_property_tax_usd,
         'total_sales_tax_usd': total_sales_tax_usd,
         'interconnection_cost_usd': interconnection_cost_usd,
+        'land_building_cost_usd': land_building_cost_usd,
+        'real_property_taxes_usd': real_property_taxes_usd,
+        'personal_property_taxes_usd': personal_property_taxes_usd,
+        'equipment_sales_tax_usd': equipment_sales_tax_usd,
+        'total_capex_cost': total_capex_cost_usd,
 
         'int_it_energy_demand_mwh': it_energy_demand_mwh,
         'int_total_facility_energy_demand_mwh': total_facility_energy_demand_mwh,

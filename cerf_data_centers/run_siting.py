@@ -26,6 +26,71 @@ from .postprocess_output import generate_output_artifacts
 from .utils import convert_sqft_to_grid_cells, get_normalized_value
 
 
+def _resolve_region_scenarios(
+    region_name: str,
+    region_dict: dict,
+    global_scenarios: dict | None,
+) -> list[tuple[str, dict]]:
+    """
+    Return the scenario configs to run for a region.
+
+    Supports:
+    - legacy single-scenario region configs
+    - a top-level `scenarios` map shared by all regions
+    - per-region `scenarios` overrides
+    """
+    if 'scenarios' in region_dict:
+        scenario_dict = region_dict['scenarios']
+    else:
+        scenario_dict = global_scenarios
+
+    if not scenario_dict:
+        return [('default', region_dict)]
+
+    base_region_dict = {k: v for k, v in region_dict.items() if k != 'scenarios'}
+    resolved_scenarios: list[tuple[str, dict]] = []
+    for scenario_name, scenario_config in scenario_dict.items():
+        merged_config = {**base_region_dict, **scenario_config}
+        merged_config['scenario_name'] = scenario_name
+        resolved_scenarios.append((scenario_name, merged_config))
+
+    if not resolved_scenarios:
+        raise ValueError(f"Region {region_name} does not define any scenarios to run.")
+
+    return resolved_scenarios
+
+
+def _drop_overlapping_smaller_sites(output_gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+    """
+    Remove smaller sites whose polygons overlap with already-kept larger sites.
+    """
+    if output_gdf.empty:
+        return output_gdf
+
+    sort_columns = ['campus_size_square_ft', 'data_center_it_power_mw', 'total_capex_cost']
+    available_columns = [column for column in sort_columns if column in output_gdf.columns]
+    ranked_gdf = output_gdf.sort_values(
+        by=available_columns,
+        ascending=[False] * len(available_columns),
+        kind='mergesort',
+    ).reset_index(drop=True)
+
+    kept_indices: list[int] = []
+    kept_geometries = []
+    for idx, row in ranked_gdf.iterrows():
+        geometry = row.geometry
+        overlaps_larger_site = any(
+            geometry.intersects(kept_geometry) and geometry.intersection(kept_geometry).area > 0
+            for kept_geometry in kept_geometries
+        )
+        if overlaps_larger_site:
+            continue
+        kept_indices.append(idx)
+        kept_geometries.append(geometry)
+
+    return ranked_gdf.loc[kept_indices].reset_index(drop=True)
+
+
 def run(config: str) -> gpd.GeoDataFrame:
     """
     Run the data center siting process based on the provided configuration file.
@@ -79,6 +144,7 @@ def run(config: str) -> gpd.GeoDataFrame:
     constraint_dict = config_dict['constraints']
     market_dict = config_dict['market_gravity']
     expansion_dict = config_dict['expansion_plan']
+    global_scenarios = config_dict.get('scenarios')
     selected_region_ids = settings_dict.get(
         'selected_region_ids',
         [region_cfg['region_id'] for region_cfg in expansion_dict.values()]
@@ -135,108 +201,137 @@ def run(config: str) -> gpd.GeoDataFrame:
     gravity_multiplier_array = calc_gravity_array_from_distance(market_array, batch_suit_array)
 
     logger.info("Starting siting process...")
-    output_gdf = gpd.GeoDataFrame()
+    output_gdf = gpd.GeoDataFrame(geometry=[], crs='ESRI:102003')
     for region_name in list(expansion_dict.keys()):
 
         logger.info(f"Processing region: {region_name}")
 
         region_dict = expansion_dict[region_name]
+        region_scenarios = _resolve_region_scenarios(region_name, region_dict, global_scenarios)
         region_id = region_dict['region_id']
-        campus_size_square_ft = region_dict['campus_size_square_ft']
-        cooling_water_intensity_gal_per_mwh = region_dict.get('cooling_water_intensity_gal_per_mwh', 460)
-        cooling_water_consumption_fraction = region_dict.get('cooling_water_consumption_fraction', .8)
-        facility_overhead_frac = region_dict.get('facility_overhead_frac', 0)
-        equipment_capex_usd = region_dict['equipment_capital_expenditure_usd']
-        building_capex_usd = region_dict['building_capital_expenditure_usd']
-        assessed_real_property_frac = region_dict.get('assessed_real_property_frac', .16)
-        assessed_personal_property_frac = region_dict.get('assessed_personal_property_frac', .8)
-        data_center_it_power_mw = region_dict['data_center_it_power_mw']
-        data_center_pue = region_dict['data_center_pue']
-        interconnection_cost_usd_per_km = region_dict['interconnection_cost_usd_per_km']
-        number_of_sites = region_dict['n_sites']
-
-        # determine the number of collected blocks
-        min_block_size = convert_sqft_to_grid_cells(campus_size_square_ft)
-
-        # get suitable siting areas for region
-        logger.info(f"Extracting suitable siting areas...")
         region_suit_array = get_region_suit_array(region_array, batch_suit_array, region_id)
 
-        # build connected component graph of suitable areas that meet minimum size criteria
-        logger.info(f"Building siting graph...")
-        G = build_graph(region_suit_array, min_block_size, raster_names, node_values)
-        if G.number_of_nodes() == 0:
-            logger.warning(f"No suitable connected components met the minimum block size for region {region_name}.")
-            continue
-        
-        # calculate locational cost in each suitable grid cell
-        logger.info(f"Calculating locational costs...")
-        for node, attrs in tqdm(list(G.nodes(data=True))):
-            G.nodes[node]['locational_cost'], node_parameter_dict = calculate_locational_cost(
-                                campus_size_square_ft=campus_size_square_ft,
-                                land_cost_usd_per_sqft=attrs['land_cost_per_sqft'],
-                                elec_rate_usd_per_kwh=attrs['electricity_rate_per_kwh'],
-                                personal_prop_tax_rate=attrs['personal_prop_tax_rate'],
-                                real_property_tax_rate=attrs['real_property_tax_rate'],
-                                sales_tax_rate=attrs['sales_tax_rate'],
-                                interconnection_distance_km=attrs['interconnection_distance_km'],
-                                mechanical_cool_fraction = attrs['mechanical_cool_fraction'],
-                                water_cool_fraction = attrs['water_cool_fraction'],
-                                equipment_capex_usd=equipment_capex_usd,
-                                building_capex_usd=building_capex_usd,
-                                interconnection_cost_usd_per_km=interconnection_cost_usd_per_km,
-                                data_center_it_power_mw=data_center_it_power_mw,
-                                data_center_pue=data_center_pue,
-                                assessed_real_property_frac = assessed_real_property_frac,
-                                assessed_personal_property_frac= assessed_personal_property_frac,
-                                cooling_water_intensity_gal_per_mwh = cooling_water_intensity_gal_per_mwh,
-                                cooling_water_consumption_fraction = cooling_water_consumption_fraction,
-                                facility_overhead_frac = facility_overhead_frac
+        for scenario_name, scenario_dict in region_scenarios:
+            logger.info("Processing scenario %s for region %s", scenario_name, region_name)
+
+            campus_size_square_ft = scenario_dict['campus_size_square_ft']
+            cooling_water_intensity_gal_per_mwh = scenario_dict.get('cooling_water_intensity_gal_per_mwh', 460)
+            cooling_water_consumption_fraction = scenario_dict.get('cooling_water_consumption_fraction', .8)
+            facility_overhead_frac = scenario_dict.get('facility_overhead_frac', 0)
+            equipment_capex_usd = scenario_dict['equipment_capital_expenditure_usd']
+            building_capex_usd = scenario_dict['building_capital_expenditure_usd']
+            assessed_real_property_frac = scenario_dict.get('assessed_real_property_frac', .16)
+            assessed_personal_property_frac = scenario_dict.get('assessed_personal_property_frac', .8)
+            data_center_it_power_mw = scenario_dict['data_center_it_power_mw']
+            data_center_pue = scenario_dict['data_center_pue']
+            interconnection_cost_usd_per_km = scenario_dict['interconnection_cost_usd_per_km']
+            number_of_sites = scenario_dict['n_sites']
+            min_block_size = convert_sqft_to_grid_cells(campus_size_square_ft)
+
+            logger.info("Building siting graph for scenario %s...", scenario_name)
+            G = build_graph(region_suit_array, min_block_size, raster_names, node_values)
+            if G.number_of_nodes() == 0:
+                logger.warning(
+                    "No suitable connected components met the minimum block size for region %s scenario %s.",
+                    region_name,
+                    scenario_name,
+                )
+                continue
+
+            logger.info("Calculating locational costs for scenario %s...", scenario_name)
+            for node, attrs in tqdm(list(G.nodes(data=True))):
+                G.nodes[node]['locational_cost'], node_parameter_dict = calculate_locational_cost(
+                    campus_size_square_ft=campus_size_square_ft,
+                    land_cost_usd_per_sqft=attrs['land_cost_per_sqft'],
+                    elec_rate_usd_per_kwh=attrs['electricity_rate_per_kwh'],
+                    personal_prop_tax_rate=attrs['personal_prop_tax_rate'],
+                    real_property_tax_rate=attrs['real_property_tax_rate'],
+                    sales_tax_rate=attrs['sales_tax_rate'],
+                    interconnection_distance_km=attrs['interconnection_distance_km'],
+                    mechanical_cool_fraction=attrs['mechanical_cool_fraction'],
+                    water_cool_fraction=attrs['water_cool_fraction'],
+                    equipment_capex_usd=equipment_capex_usd,
+                    building_capex_usd=building_capex_usd,
+                    interconnection_cost_usd_per_km=interconnection_cost_usd_per_km,
+                    data_center_it_power_mw=data_center_it_power_mw,
+                    data_center_pue=data_center_pue,
+                    assessed_real_property_frac=assessed_real_property_frac,
+                    assessed_personal_property_frac=assessed_personal_property_frac,
+                    cooling_water_intensity_gal_per_mwh=cooling_water_intensity_gal_per_mwh,
+                    cooling_water_consumption_fraction=cooling_water_consumption_fraction,
+                    facility_overhead_frac=facility_overhead_frac,
+                )
+                G.nodes[node]['parameters'] = node_parameter_dict
+
+            max_locational_cost = max(data['locational_cost'] for _, data in G.nodes(data=True))
+            min_locational_cost = min(data['locational_cost'] for _, data in G.nodes(data=True))
+
+            logger.info("Calculating market gravity score for scenario %s...", scenario_name)
+            for node, attrs in tqdm(list(G.nodes(data=True))):
+                G.nodes[node]['gravity_score'] = calc_gravity_score(
+                    node,
+                    gravity_multiplier_array,
+                    data_center_it_power_mw,
+                    alpha=0.5,
+                )
+
+            max_gravity_score = max(data['gravity_score'] for _, data in G.nodes(data=True))
+            min_gravity_score = min(data['gravity_score'] for _, data in G.nodes(data=True))
+
+            logger.info("Normalizing cost and market score for scenario %s...", scenario_name)
+            cost_weight = settings_dict.get('cost_weight', 1.0)
+            market_weight = settings_dict.get('market_weight', 0.0)
+            for node, attrs in tqdm(list(G.nodes(data=True))):
+                G.nodes[node]['normalized_locational_cost'] = get_normalized_value(
+                    G,
+                    attribute='locational_cost',
+                    node=node,
+                    max_value=max_locational_cost,
+                    min_value=min_locational_cost,
+                )
+                G.nodes[node]['normalized_gravity_score'] = get_normalized_value(
+                    G,
+                    attribute='gravity_score',
+                    node=node,
+                    max_value=max_gravity_score,
+                    min_value=min_gravity_score,
+                )
+
+                norm_loc_cost = G.nodes[node]['normalized_locational_cost']
+                norm_gravity_score = G.nodes[node]['normalized_gravity_score']
+                G.nodes[node]['total_weighted_siting_score'] = (
+                    cost_weight * norm_loc_cost
+                ) + (
+                    market_weight * norm_gravity_score
+                )
+
+            result_list = site_based_on_siting_score(
+                G,
+                number_of_sites,
+                min_block_size,
+                region_name,
+                transform,
             )
-            # add parameters to node attributes
-            G.nodes[node]['parameters'] = node_parameter_dict
 
-        max_locational_cost = max(data['locational_cost'] for _, data in G.nodes(data=True))
-        min_locational_cost = min(data['locational_cost'] for _, data in G.nodes(data=True))
+            logger.info(
+                "Sited %s data center(s) in region %s for scenario %s.",
+                len(result_list),
+                region_name,
+                scenario_name,
+            )
 
-        logger.info(f"Calculating market gravity score...")
-        for node, attrs in tqdm(list(G.nodes(data=True))):
-    
-            # calculate gravity score
-            G.nodes[node]['gravity_score'] = calc_gravity_score(node, gravity_multiplier_array, data_center_it_power_mw, alpha=0.5)
+            scenario_gdf = configure_output(
+                result_list,
+                region_id,
+                output_prefix=f"{region_id}_{scenario_name}",
+                extra_fields={'scenario': scenario_name},
+            )
+            output_gdf = pd.concat([output_gdf, scenario_gdf], ignore_index=True)
 
-        max_gravity_score = max(data['gravity_score'] for _, data in G.nodes(data=True))
-        min_gravity_score = min(data['gravity_score'] for _, data in G.nodes(data=True))
-        
-        logger.info(f"Normalizing cost and market score...")
-        for node, attrs in tqdm(list(G.nodes(data=True))):
-            # get normalized locational cost
-            G.nodes[node]['normalized_locational_cost'] = get_normalized_value(G, attribute='locational_cost', node=node, 
-                                                                               max_value=max_locational_cost, 
-                                                                               min_value=min_locational_cost)
-
-            # get normalized gravity score
-            G.nodes[node]['normalized_gravity_score'] = get_normalized_value(G, attribute='gravity_score', node=node,
-                                                                               max_value=max_gravity_score,
-                                                                               min_value=min_gravity_score)
-
-            # get total weighted siting score
-            norm_loc_cost = G.nodes[node]['normalized_locational_cost']
-            norm_gravity_score = G.nodes[node]['normalized_gravity_score']
-            cost_weight = settings_dict.get('cost_weight', 0.5)
-            market_weight = settings_dict.get('market_weight', 0.5)
-
-            G.nodes[node]['total_weighted_siting_score'] = (cost_weight * norm_loc_cost) +  (market_weight * norm_gravity_score)
-
-        # site based on the minimum locational cost
-        result_list = site_based_on_siting_score(
-            G, number_of_sites, min_block_size, region_name, transform
+    if 'geometry' in output_gdf.columns:
+        output_gdf = _drop_overlapping_smaller_sites(
+            gpd.GeoDataFrame(output_gdf, geometry='geometry', crs='ESRI:102003')
         )
-
-        logger.info(f"Sited {len(result_list)} data center(s) in region {region_name}.")
-    
-        region_gdf = configure_output(result_list, region_id)
-        output_gdf = pd.concat([output_gdf, region_gdf])
 
     if settings_dict.get('output_file'):
         logger.info(f"Saving output to {settings_dict['output_file']}")
