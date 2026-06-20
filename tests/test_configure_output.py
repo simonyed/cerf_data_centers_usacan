@@ -2,8 +2,12 @@ import pytest
 import pandas as pd
 import geopandas as gpd
 from shapely.geometry import Polygon, Point
+from pyproj import Transformer
 
 from cerf_data_centers.configure_output import configure_output
+
+
+WEB_COORD_TRANSFORMER = Transformer.from_crs("ESRI:102003", "EPSG:4326", always_xy=True)
 
 @pytest.fixture
 def sample_result_list():
@@ -62,7 +66,7 @@ def test_configure_output_returns_geodataframe(sample_result_list):
 def test_configure_output_columns(sample_result_list):
     region_id = 42
     gdf = configure_output(sample_result_list, region_id)
-    expected_columns = {'id', 'region', 'xcoord', 'ycoord', 'locational_cost_million_usd', 'geometry'}
+    expected_columns = {'id', 'region', 'longitude', 'latitude', 'locational_cost_million_usd', 'geometry'}
     assert expected_columns.issubset(set(gdf.columns))
 
 def test_configure_output_id_and_region(sample_result_list):
@@ -93,6 +97,20 @@ def test_configure_output_crs(sample_result_list):
     gdf = configure_output(sample_result_list, region_id)
     # CRS should be ESRI:102003
     assert gdf.crs.to_string() == 'ESRI:102003'
+
+
+def test_configure_output_lon_lat_are_wgs84(sample_result_list):
+    region_id = 42
+    gdf = configure_output(sample_result_list, region_id)
+
+    for _, row in gdf.iterrows():
+        representative_point = row.geometry.representative_point()
+        expected_lon, expected_lat = WEB_COORD_TRANSFORMER.transform(
+            representative_point.x,
+            representative_point.y,
+        )
+        assert row["longitude"] == pytest.approx(expected_lon)
+        assert row["latitude"] == pytest.approx(expected_lat)
 
 def test_configure_output_empty_result():
     # If result_list is empty, should return empty GeoDataFrame

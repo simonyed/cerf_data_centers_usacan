@@ -1,8 +1,11 @@
 import importlib.util
 from pathlib import Path
+import sys
 
 import pytest
 import yaml
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
 SCRIPT_PATH = Path(__file__).resolve().parents[1] / "scripts" / "run_usa_can_batches.py"
@@ -88,6 +91,38 @@ def write_yaml(path: Path, data: dict) -> None:
         yaml.safe_dump(data, handle, sort_keys=False)
 
 
+class _FakeFuture:
+    def __init__(self, fn, *args):
+        self._exception = None
+        self._result = None
+        try:
+            self._result = fn(*args)
+        except Exception as exc:  # pragma: no cover - exercised by callers
+            self._exception = exc
+
+    def result(self):
+        if self._exception is not None:
+            raise self._exception
+        return self._result
+
+    def cancel(self):
+        return False
+
+
+class _FakeExecutor:
+    def __init__(self, max_workers=None):
+        self.max_workers = max_workers
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+    def submit(self, fn, *args):
+        return _FakeFuture(fn, *args)
+
+
 def test_write_batch_configs_generates_expected_yaml(tmp_path, sample_master_config, sample_batch_config):
     master_path = tmp_path / "master.yaml"
     batch_path = tmp_path / "batches.yaml"
@@ -132,3 +167,87 @@ def test_validate_batch_assignments_requires_contiguous_batch_ids(sample_master_
 
     with pytest.raises(ValueError, match="continuous starting at 1"):
         run_usa_can_batches.validate_batch_assignments(sample_master_config, sample_batch_config)
+
+
+def test_execute_batches_parallel_runs_all(monkeypatch):
+    executed = []
+    batch_summaries = [
+        {"batch_id": 1, "config_path": Path("batch_01.yaml")},
+        {"batch_id": 2, "config_path": Path("batch_02.yaml")},
+    ]
+
+    monkeypatch.setattr(
+        run_usa_can_batches,
+        "_execute_batch_config",
+        lambda path, region_workers=1: executed.append((str(path), region_workers)) or str(path),
+    )
+    monkeypatch.setattr(run_usa_can_batches, "ProcessPoolExecutor", _FakeExecutor)
+    monkeypatch.setattr(run_usa_can_batches, "as_completed", lambda futures: list(futures))
+
+    run_usa_can_batches.execute_batches(batch_summaries, max_workers=2, region_workers=3)
+
+    assert executed == [("batch_01.yaml", 3), ("batch_02.yaml", 3)]
+
+
+def test_execute_batches_parallel_raises_on_failure(monkeypatch):
+    batch_summaries = [
+        {"batch_id": 1, "config_path": Path("batch_01.yaml")},
+        {"batch_id": 2, "config_path": Path("batch_02.yaml")},
+    ]
+
+    def fail_on_second(path, region_workers=1):
+        if str(path) == "batch_02.yaml":
+            raise ValueError("bad batch")
+        return str(path)
+
+    monkeypatch.setattr(run_usa_can_batches, "_execute_batch_config", fail_on_second)
+    monkeypatch.setattr(run_usa_can_batches, "ProcessPoolExecutor", _FakeExecutor)
+    monkeypatch.setattr(run_usa_can_batches, "as_completed", lambda futures: list(futures))
+
+    with pytest.raises(RuntimeError, match="Batch 02 execution failed"):
+        run_usa_can_batches.execute_batches(batch_summaries, max_workers=2)
+
+
+def test_main_execute_triggers_merge(monkeypatch, tmp_path):
+    called = []
+    master_path = tmp_path / "master.yaml"
+    batch_path = tmp_path / "batches.yaml"
+    output_root = tmp_path / "outputs"
+
+    monkeypatch.setattr(
+        run_usa_can_batches,
+        "write_batch_configs",
+        lambda **kwargs: [{"batch_id": 1, "config_path": Path("batch_01.yaml")}],
+    )
+    monkeypatch.setattr(
+        run_usa_can_batches,
+        "execute_batches",
+        lambda summaries, max_workers, region_workers: called.append(
+            ("execute", summaries, max_workers, region_workers)
+        ),
+    )
+    monkeypatch.setattr(
+        run_usa_can_batches,
+        "merge_outputs",
+        lambda root: called.append(("merge", Path(root))),
+    )
+
+    old_argv = sys.argv
+    sys.argv = [
+        "run_usa_can_batches.py",
+        "--master-config", str(master_path),
+        "--batch-config", str(batch_path),
+        "--output-root", str(output_root),
+        "--execute",
+        "--workers", "4",
+        "--region-workers", "3",
+    ]
+    try:
+        run_usa_can_batches.main()
+    finally:
+        sys.argv = old_argv
+
+    assert called[0][0] == "execute"
+    assert called[0][2] == 4
+    assert called[0][3] == 3
+    assert called[1] == ("merge", output_root)

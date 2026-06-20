@@ -1,27 +1,29 @@
-from tqdm import tqdm
-import time
+from concurrent.futures import ProcessPoolExecutor, as_completed
+import json
 import logging
-import geopandas as gpd
-import pandas as pd
-import click
-import os
-import sys
 from pathlib import Path
+import sys
+import tempfile
+import time
 
+import click
+import geopandas as gpd
 import numpy as np
+import pandas as pd
+from tqdm import tqdm
 
+from .calculate_gravity_score import calc_gravity_array_from_distance, calc_gravity_score
+from .calculate_locational_cost import calculate_locational_cost
+from .configure_output import configure_output
+from .determine_sites import build_graph, get_region_suit_array, site_based_on_siting_score
 from .load_data import (
-    load_region_raster,
-    load_raster_array,
     collect_constraints,
     find_region_window,
     get_yaml,
+    load_raster_array,
+    load_region_raster,
     validate_raster_alignment,
 )
-from .calculate_locational_cost import calculate_locational_cost
-from .determine_sites import get_region_suit_array, build_graph, site_based_on_siting_score
-from .calculate_gravity_score import calc_gravity_array_from_distance, calc_gravity_score
-from .configure_output import configure_output
 from .postprocess_output import generate_output_artifacts
 from .utils import convert_sqft_to_grid_cells, get_normalized_value
 
@@ -91,66 +93,30 @@ def _drop_overlapping_smaller_sites(output_gdf: gpd.GeoDataFrame) -> gpd.GeoData
     return ranked_gdf.loc[kept_indices].reset_index(drop=True)
 
 
-def run(config: str) -> gpd.GeoDataFrame:
-    """
-    Run the data center siting process based on the provided configuration file.
+def _get_selected_region_names(
+    expansion_dict: dict[str, dict],
+    selected_region_ids: list[int],
+) -> list[str]:
+    selected_ids = set(selected_region_ids)
+    region_names = [
+        region_name
+        for region_name, region_config in expansion_dict.items()
+        if region_config['region_id'] in selected_ids
+    ]
+    if not region_names:
+        raise ValueError("No regions from selected_region_ids are present in expansion_plan.")
+    return region_names
 
-    Args:
-        config (str): Path to the configuration file in YAML format.
 
-    Returns
-    -------
-    geopandas.GeoDataFrame
-        A GeoDataFrame containing siting results (one or more sites per
-        region) produced by the algorithm.
-
-    Raises
-    ------
-    FileNotFoundError
-        If the provided `config` path does not exist.
-    KeyError, ValueError
-        If required configuration keys or sections are missing or malformed.
-    RuntimeError
-        For unexpected runtime errors during raster processing or graph
-        operations.
-
-    Notes
-    -----
-    The function performs these high-level steps:
-    - Load configuration and raster inputs (region, suitability, market).
-    - Collect cost/constraint layers for suitable grid cells.
-    - For each region in `expansion_plan`:
-      - Extract suitable blocks and build a connected-component graph.
-      - Compute locational costs and market-gravity scores per node.
-      - Normalize scores, compute combined siting score, and select top
-        `n_sites` according to the configuration.
-    - Optionally write the result to `settings.output_file` if present.
-
-    This function is intended to be callable programmatically (returns a
-    GeoDataFrame) and is also wrapped by a CLI command `site` in this
-    module which performs additional logging and CLI-based output options.
-    """
-    t0 = time.time()
-    fmt = '%(asctime)s - %(levelname)s - %(message)s'
-    logging.basicConfig(level=logging.INFO, format=fmt)
-    logger = logging.getLogger(__name__)
-
-    logger.info("Application started")
-
-    logger.info(f"Using configuration file: {config}")
-    config_dict = get_yaml(config)
-
+def _prepare_runtime_context(
+    config_dict: dict,
+    selected_region_ids: list[int],
+    logger: logging.Logger,
+) -> dict:
     settings_dict = config_dict['settings']
     constraint_dict = config_dict['constraints']
     market_dict = config_dict['market_gravity']
-    expansion_dict = config_dict['expansion_plan']
-    global_scenarios = config_dict.get('scenarios')
-    selected_region_ids = settings_dict.get(
-        'selected_region_ids',
-        [region_cfg['region_id'] for region_cfg in expansion_dict.values()]
-    )
 
-    # get cost and constraint layers as lists
     raster_names = list(constraint_dict.keys())
     raster_paths = list(constraint_dict.values())
     all_raster_paths = [
@@ -163,7 +129,7 @@ def run(config: str) -> gpd.GeoDataFrame:
     logger.info("Validating raster alignment...")
     validate_raster_alignment(settings_dict['region_raster_path'], all_raster_paths[1:])
 
-    logger.info(f"Computing minimum raster window for selected regions: {selected_region_ids}")
+    logger.info("Computing minimum raster window for selected regions: %s", selected_region_ids)
     region_window = find_region_window(settings_dict['region_raster_path'], selected_region_ids)
     logger.info(
         "Using raster window row_off=%s col_off=%s height=%s width=%s",
@@ -173,17 +139,14 @@ def run(config: str) -> gpd.GeoDataFrame:
         int(region_window.width),
     )
 
-    # load region array
-    logger.info(f"Loading region raster from {settings_dict['region_raster_path']}")
+    logger.info("Loading region raster from %s", settings_dict['region_raster_path'])
     region_array, transform = load_region_raster(settings_dict['region_raster_path'], window=region_window)
 
-    # load suitability array
-    logger.info(f"Loading siting suitability raster from {settings_dict['siting_raster_path']}")
+    logger.info("Loading siting suitability raster from %s", settings_dict['siting_raster_path'])
     suit_array = load_raster_array(raster_fn=settings_dict['siting_raster_path'], window=region_window)
     batch_region_mask = np.isin(region_array, selected_region_ids)
     batch_suit_array = np.where(batch_region_mask, suit_array, 0)
 
-    # load cost and constraint arrays in suitable grid cells
     node_values = collect_constraints(
         batch_suit_array,
         transform,
@@ -193,155 +156,322 @@ def run(config: str) -> gpd.GeoDataFrame:
         window=region_window,
     )
 
-    # load market size and distance to market
     market_array = load_raster_array(raster_fn=market_dict['market_raster_path'], window=region_window)
-
-    logger.info(f"Calculating market gravity multipliers...")
-    # get the gravity multiplier array based on distance to market and market size
+    logger.info("Calculating market gravity multipliers...")
     gravity_multiplier_array = calc_gravity_array_from_distance(market_array, batch_suit_array)
 
-    logger.info("Starting siting process...")
-    output_gdf = gpd.GeoDataFrame(geometry=[], crs='ESRI:102003')
-    for region_name in list(expansion_dict.keys()):
+    return {
+        'settings_dict': settings_dict,
+        'expansion_dict': config_dict['expansion_plan'],
+        'global_scenarios': config_dict.get('scenarios'),
+        'raster_names': raster_names,
+        'region_array': region_array,
+        'transform': transform,
+        'batch_suit_array': batch_suit_array,
+        'node_values': node_values,
+        'gravity_multiplier_array': gravity_multiplier_array,
+    }
 
-        logger.info(f"Processing region: {region_name}")
 
-        region_dict = expansion_dict[region_name]
-        region_scenarios = _resolve_region_scenarios(region_name, region_dict, global_scenarios)
-        region_id = region_dict['region_id']
-        region_suit_array = get_region_suit_array(region_array, batch_suit_array, region_id)
+def _run_region_in_context(
+    region_name: str,
+    region_dict: dict,
+    runtime_context: dict,
+    logger: logging.Logger,
+) -> gpd.GeoDataFrame:
+    settings_dict = runtime_context['settings_dict']
+    global_scenarios = runtime_context['global_scenarios']
+    raster_names = runtime_context['raster_names']
+    region_array = runtime_context['region_array']
+    transform = runtime_context['transform']
+    batch_suit_array = runtime_context['batch_suit_array']
+    node_values = runtime_context['node_values']
+    gravity_multiplier_array = runtime_context['gravity_multiplier_array']
 
-        for scenario_name, scenario_dict in region_scenarios:
-            logger.info("Processing scenario %s for region %s", scenario_name, region_name)
+    logger.info("Processing region: %s", region_name)
 
-            campus_size_square_ft = scenario_dict['campus_size_square_ft']
-            cooling_water_intensity_gal_per_mwh = scenario_dict.get('cooling_water_intensity_gal_per_mwh', 460)
-            cooling_water_consumption_fraction = scenario_dict.get('cooling_water_consumption_fraction', .8)
-            facility_overhead_frac = scenario_dict.get('facility_overhead_frac', 0)
-            equipment_capex_usd = scenario_dict['equipment_capital_expenditure_usd']
-            building_capex_usd = scenario_dict['building_capital_expenditure_usd']
-            assessed_real_property_frac = scenario_dict.get('assessed_real_property_frac', .16)
-            assessed_personal_property_frac = scenario_dict.get('assessed_personal_property_frac', .8)
-            data_center_it_power_mw = scenario_dict['data_center_it_power_mw']
-            data_center_pue = scenario_dict['data_center_pue']
-            interconnection_cost_usd_per_km = scenario_dict['interconnection_cost_usd_per_km']
-            number_of_sites = scenario_dict['n_sites']
-            min_block_size = convert_sqft_to_grid_cells(campus_size_square_ft)
+    region_scenarios = _resolve_region_scenarios(region_name, region_dict, global_scenarios)
+    region_id = region_dict['region_id']
+    region_suit_array = get_region_suit_array(region_array, batch_suit_array, region_id)
 
-            logger.info("Building siting graph for scenario %s...", scenario_name)
-            G = build_graph(region_suit_array, min_block_size, raster_names, node_values)
-            if G.number_of_nodes() == 0:
-                logger.warning(
-                    "No suitable connected components met the minimum block size for region %s scenario %s.",
-                    region_name,
-                    scenario_name,
-                )
-                continue
+    region_frames: list[gpd.GeoDataFrame] = []
+    for scenario_name, scenario_dict in region_scenarios:
+        logger.info("Processing scenario %s for region %s", scenario_name, region_name)
 
-            logger.info("Calculating locational costs for scenario %s...", scenario_name)
-            for node, attrs in tqdm(list(G.nodes(data=True))):
-                G.nodes[node]['locational_cost'], node_parameter_dict = calculate_locational_cost(
-                    campus_size_square_ft=campus_size_square_ft,
-                    land_cost_usd_per_sqft=attrs['land_cost_per_sqft'],
-                    elec_rate_usd_per_kwh=attrs['electricity_rate_per_kwh'],
-                    personal_prop_tax_rate=attrs['personal_prop_tax_rate'],
-                    real_property_tax_rate=attrs['real_property_tax_rate'],
-                    sales_tax_rate=attrs['sales_tax_rate'],
-                    interconnection_distance_km=attrs['interconnection_distance_km'],
-                    mechanical_cool_fraction=attrs['mechanical_cool_fraction'],
-                    water_cool_fraction=attrs['water_cool_fraction'],
-                    equipment_capex_usd=equipment_capex_usd,
-                    building_capex_usd=building_capex_usd,
-                    interconnection_cost_usd_per_km=interconnection_cost_usd_per_km,
-                    data_center_it_power_mw=data_center_it_power_mw,
-                    data_center_pue=data_center_pue,
-                    assessed_real_property_frac=assessed_real_property_frac,
-                    assessed_personal_property_frac=assessed_personal_property_frac,
-                    cooling_water_intensity_gal_per_mwh=cooling_water_intensity_gal_per_mwh,
-                    cooling_water_consumption_fraction=cooling_water_consumption_fraction,
-                    facility_overhead_frac=facility_overhead_frac,
-                )
-                G.nodes[node]['parameters'] = node_parameter_dict
+        campus_size_square_ft = scenario_dict['campus_size_square_ft']
+        cooling_water_intensity_gal_per_mwh = scenario_dict.get('cooling_water_intensity_gal_per_mwh', 460)
+        cooling_water_consumption_fraction = scenario_dict.get('cooling_water_consumption_fraction', .8)
+        facility_overhead_frac = scenario_dict.get('facility_overhead_frac', 0)
+        equipment_capex_usd = scenario_dict['equipment_capital_expenditure_usd']
+        building_capex_usd = scenario_dict['building_capital_expenditure_usd']
+        assessed_real_property_frac = scenario_dict.get('assessed_real_property_frac', .16)
+        assessed_personal_property_frac = scenario_dict.get('assessed_personal_property_frac', .8)
+        data_center_it_power_mw = scenario_dict['data_center_it_power_mw']
+        data_center_pue = scenario_dict['data_center_pue']
+        interconnection_cost_usd_per_km = scenario_dict['interconnection_cost_usd_per_km']
+        number_of_sites = scenario_dict['n_sites']
+        min_block_size = convert_sqft_to_grid_cells(campus_size_square_ft)
 
-            max_locational_cost = max(data['locational_cost'] for _, data in G.nodes(data=True))
-            min_locational_cost = min(data['locational_cost'] for _, data in G.nodes(data=True))
-
-            logger.info("Calculating market gravity score for scenario %s...", scenario_name)
-            for node, attrs in tqdm(list(G.nodes(data=True))):
-                G.nodes[node]['gravity_score'] = calc_gravity_score(
-                    node,
-                    gravity_multiplier_array,
-                    data_center_it_power_mw,
-                    alpha=0.5,
-                )
-
-            max_gravity_score = max(data['gravity_score'] for _, data in G.nodes(data=True))
-            min_gravity_score = min(data['gravity_score'] for _, data in G.nodes(data=True))
-
-            logger.info("Normalizing cost and market score for scenario %s...", scenario_name)
-            cost_weight = settings_dict.get('cost_weight', 1.0)
-            market_weight = settings_dict.get('market_weight', 0.0)
-            for node, attrs in tqdm(list(G.nodes(data=True))):
-                G.nodes[node]['normalized_locational_cost'] = get_normalized_value(
-                    G,
-                    attribute='locational_cost',
-                    node=node,
-                    max_value=max_locational_cost,
-                    min_value=min_locational_cost,
-                )
-                G.nodes[node]['normalized_gravity_score'] = get_normalized_value(
-                    G,
-                    attribute='gravity_score',
-                    node=node,
-                    max_value=max_gravity_score,
-                    min_value=min_gravity_score,
-                )
-
-                norm_loc_cost = G.nodes[node]['normalized_locational_cost']
-                norm_gravity_score = G.nodes[node]['normalized_gravity_score']
-                G.nodes[node]['total_weighted_siting_score'] = (
-                    cost_weight * norm_loc_cost
-                ) + (
-                    market_weight * norm_gravity_score
-                )
-
-            result_list = site_based_on_siting_score(
-                G,
-                number_of_sites,
-                min_block_size,
-                region_name,
-                transform,
-            )
-
-            logger.info(
-                "Sited %s data center(s) in region %s for scenario %s.",
-                len(result_list),
+        logger.info("Building siting graph for scenario %s...", scenario_name)
+        G = build_graph(region_suit_array, min_block_size, raster_names, node_values)
+        if G.number_of_nodes() == 0:
+            logger.warning(
+                "No suitable connected components met the minimum block size for region %s scenario %s.",
                 region_name,
                 scenario_name,
             )
+            continue
 
-            scenario_gdf = configure_output(
-                result_list,
-                region_id,
-                output_prefix=f"{region_id}_{scenario_name}",
-                extra_fields={'scenario': scenario_name},
+        logger.info("Calculating locational costs for scenario %s...", scenario_name)
+        for node, attrs in tqdm(list(G.nodes(data=True))):
+            G.nodes[node]['locational_cost'], node_parameter_dict = calculate_locational_cost(
+                campus_size_square_ft=campus_size_square_ft,
+                land_cost_usd_per_sqft=attrs['land_cost_per_sqft'],
+                elec_rate_usd_per_kwh=attrs['electricity_rate_per_kwh'],
+                personal_prop_tax_rate=attrs['personal_prop_tax_rate'],
+                real_property_tax_rate=attrs['real_property_tax_rate'],
+                sales_tax_rate=attrs['sales_tax_rate'],
+                interconnection_distance_km=attrs['interconnection_distance_km'],
+                mechanical_cool_fraction=attrs['mechanical_cool_fraction'],
+                water_cool_fraction=attrs['water_cool_fraction'],
+                equipment_capex_usd=equipment_capex_usd,
+                building_capex_usd=building_capex_usd,
+                interconnection_cost_usd_per_km=interconnection_cost_usd_per_km,
+                data_center_it_power_mw=data_center_it_power_mw,
+                data_center_pue=data_center_pue,
+                assessed_real_property_frac=assessed_real_property_frac,
+                assessed_personal_property_frac=assessed_personal_property_frac,
+                cooling_water_intensity_gal_per_mwh=cooling_water_intensity_gal_per_mwh,
+                cooling_water_consumption_fraction=cooling_water_consumption_fraction,
+                facility_overhead_frac=facility_overhead_frac,
             )
-            output_gdf = pd.concat([output_gdf, scenario_gdf], ignore_index=True)
+            G.nodes[node]['parameters'] = node_parameter_dict
 
+        max_locational_cost = max(data['locational_cost'] for _, data in G.nodes(data=True))
+        min_locational_cost = min(data['locational_cost'] for _, data in G.nodes(data=True))
+
+        logger.info("Calculating market gravity score for scenario %s...", scenario_name)
+        for node, _attrs in tqdm(list(G.nodes(data=True))):
+            G.nodes[node]['gravity_score'] = calc_gravity_score(
+                node,
+                gravity_multiplier_array,
+                data_center_it_power_mw,
+                alpha=0.5,
+            )
+
+        max_gravity_score = max(data['gravity_score'] for _, data in G.nodes(data=True))
+        min_gravity_score = min(data['gravity_score'] for _, data in G.nodes(data=True))
+
+        logger.info("Normalizing cost and market score for scenario %s...", scenario_name)
+        cost_weight = settings_dict.get('cost_weight', 1.0)
+        market_weight = settings_dict.get('market_weight', 0.0)
+        for node, _attrs in tqdm(list(G.nodes(data=True))):
+            G.nodes[node]['normalized_locational_cost'] = get_normalized_value(
+                G,
+                attribute='locational_cost',
+                node=node,
+                max_value=max_locational_cost,
+                min_value=min_locational_cost,
+            )
+            G.nodes[node]['normalized_gravity_score'] = get_normalized_value(
+                G,
+                attribute='gravity_score',
+                node=node,
+                max_value=max_gravity_score,
+                min_value=min_gravity_score,
+            )
+
+            norm_loc_cost = G.nodes[node]['normalized_locational_cost']
+            norm_gravity_score = G.nodes[node]['normalized_gravity_score']
+            G.nodes[node]['total_weighted_siting_score'] = (
+                cost_weight * norm_loc_cost
+            ) + (
+                market_weight * norm_gravity_score
+            )
+
+        result_list = site_based_on_siting_score(
+            G,
+            number_of_sites,
+            min_block_size,
+            region_name,
+            transform,
+        )
+
+        logger.info(
+            "Sited %s data center(s) in region %s for scenario %s.",
+            len(result_list),
+            region_name,
+            scenario_name,
+        )
+
+        scenario_gdf = configure_output(
+            result_list,
+            region_id,
+            output_prefix=f"{region_id}_{scenario_name}",
+            extra_fields={'scenario': scenario_name},
+        )
+        region_frames.append(scenario_gdf)
+
+    return _concatenate_output_frames(region_frames)
+
+
+def _concatenate_output_frames(frames: list[gpd.GeoDataFrame]) -> gpd.GeoDataFrame:
+    if not frames:
+        return gpd.GeoDataFrame(geometry=[], crs='ESRI:102003')
+    return gpd.GeoDataFrame(pd.concat(frames, ignore_index=True), geometry='geometry', crs='ESRI:102003')
+
+
+def _sort_output_gdf(output_gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+    if output_gdf.empty:
+        return output_gdf
+
+    sort_columns = [column for column in ['region', 'scenario', 'id'] if column in output_gdf.columns]
+    if not sort_columns:
+        return output_gdf.reset_index(drop=True)
+    return output_gdf.sort_values(by=sort_columns, kind='mergesort').reset_index(drop=True)
+
+
+def _write_geojson_file(output_gdf: gpd.GeoDataFrame, output_file: str | Path) -> None:
+    path = Path(output_file)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    web_gdf = output_gdf if output_gdf.crs == 'EPSG:4326' else output_gdf.to_crs(epsg=4326)
+    path.write_text(web_gdf.to_json(), encoding='utf-8')
+
+
+def _finalize_output_gdf(output_gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     if 'geometry' in output_gdf.columns:
         output_gdf = _drop_overlapping_smaller_sites(
             gpd.GeoDataFrame(output_gdf, geometry='geometry', crs='ESRI:102003')
         )
+    return _sort_output_gdf(output_gdf)
 
-    if settings_dict.get('output_file'):
-        logger.info(f"Saving output to {settings_dict['output_file']}")
-        output_gdf.to_file(settings_dict['output_file'])
-        html_path, csv_path = generate_output_artifacts(settings_dict['output_file'])
-        logger.info(f"Saved HTML map to {html_path}")
-        logger.info(f"Saved CSV to {csv_path}")
 
-    logger.info(f"All regions processed in {round((time.time() - t0)/60, 2)} minutes.")
+def _save_output(
+    output_gdf: gpd.GeoDataFrame,
+    output_file: str | Path | None,
+    logger: logging.Logger,
+    include_artifacts: bool = True,
+) -> None:
+    if not output_file:
+        return
 
+    logger.info("Saving output to %s", output_file)
+    _write_geojson_file(output_gdf, output_file)
+    if include_artifacts:
+        html_path, csv_path = generate_output_artifacts(output_file)
+        logger.info("Saved HTML map to %s", html_path)
+        logger.info("Saved CSV to %s", csv_path)
+
+
+def _run_serial_from_config_dict(
+    config_dict: dict,
+    selected_region_names: list[str],
+    logger: logging.Logger,
+) -> gpd.GeoDataFrame:
+    selected_region_ids = [config_dict['expansion_plan'][name]['region_id'] for name in selected_region_names]
+    runtime_context = _prepare_runtime_context(config_dict, selected_region_ids, logger)
+
+    logger.info("Starting siting process...")
+    region_frames = [
+        _run_region_in_context(region_name, config_dict['expansion_plan'][region_name], runtime_context, logger)
+        for region_name in selected_region_names
+    ]
+    return _concatenate_output_frames(region_frames)
+
+
+def _build_region_subconfig(config_dict: dict, region_name: str, output_file: str) -> dict:
+    region_dict = config_dict['expansion_plan'][region_name]
+    region_id = region_dict['region_id']
+    subconfig = json.loads(json.dumps(config_dict))
+    subconfig['expansion_plan'] = {region_name: region_dict}
+    subconfig.setdefault('settings', {})
+    subconfig['settings']['selected_region_ids'] = [region_id]
+    subconfig['settings']['output_file'] = str(Path(output_file).resolve()).replace("\\", "/")
+    return subconfig
+
+
+def _run_region_worker(config_path: str, region_name: str, output_path: str) -> str:
+    fmt = '%(asctime)s - %(levelname)s - %(message)s'
+    logging.basicConfig(level=logging.INFO, format=fmt)
+    logger = logging.getLogger(__name__)
+
+    config_dict = get_yaml(config_path)
+    subconfig = _build_region_subconfig(config_dict, region_name, output_path)
+    output_gdf = _run_serial_from_config_dict(subconfig, [region_name], logger)
+    output_gdf = _finalize_output_gdf(output_gdf)
+    _save_output(output_gdf, output_path, logger, include_artifacts=False)
+    return output_path
+
+
+def _run_regions_in_parallel(
+    config_path: str,
+    config_dict: dict,
+    selected_region_names: list[str],
+    max_workers: int,
+    logger: logging.Logger,
+) -> gpd.GeoDataFrame:
+    with tempfile.TemporaryDirectory(prefix='cerf_region_runs_') as temp_dir:
+        future_to_region = {}
+        with ProcessPoolExecutor(max_workers=max_workers) as executor:
+            for index, region_name in enumerate(selected_region_names):
+                output_path = Path(temp_dir) / f"region_{index:03d}_{region_name}.geojson"
+                future = executor.submit(_run_region_worker, config_path, region_name, str(output_path))
+                future_to_region[future] = region_name
+
+            completed_outputs: dict[str, Path] = {}
+            for future in as_completed(future_to_region):
+                region_name = future_to_region[future]
+                try:
+                    output_path = future.result()
+                except Exception as exc:
+                    for pending_future in future_to_region:
+                        pending_future.cancel()
+                    raise RuntimeError(f"Parallel siting failed for region {region_name}") from exc
+                completed_outputs[region_name] = Path(output_path)
+                logger.info("Finished parallel region: %s", region_name)
+
+        region_frames = [
+            gpd.read_file(completed_outputs[region_name]).to_crs('ESRI:102003')
+            for region_name in selected_region_names
+            if region_name in completed_outputs
+        ]
+        return _concatenate_output_frames(region_frames)
+
+
+def run(config: str, max_workers: int | None = None) -> gpd.GeoDataFrame:
+    """
+    Run the data center siting process based on the provided configuration file.
+    """
+    t0 = time.time()
+    fmt = '%(asctime)s - %(levelname)s - %(message)s'
+    logging.basicConfig(level=logging.INFO, format=fmt)
+    logger = logging.getLogger(__name__)
+
+    logger.info("Application started")
+    logger.info("Using configuration file: %s", config)
+    config_dict = get_yaml(config)
+
+    expansion_dict = config_dict['expansion_plan']
+    settings_dict = config_dict['settings']
+    selected_region_ids = settings_dict.get(
+        'selected_region_ids',
+        [region_cfg['region_id'] for region_cfg in expansion_dict.values()]
+    )
+    selected_region_names = _get_selected_region_names(expansion_dict, selected_region_ids)
+
+    worker_count = 1 if max_workers in (None, 0) else max_workers
+    if worker_count < 1:
+        raise ValueError("max_workers must be at least 1.")
+
+    if worker_count > 1 and len(selected_region_names) > 1:
+        output_gdf = _run_regions_in_parallel(config, config_dict, selected_region_names, worker_count, logger)
+    else:
+        output_gdf = _run_serial_from_config_dict(config_dict, selected_region_names, logger)
+
+    output_gdf = _finalize_output_gdf(output_gdf)
+    _save_output(output_gdf, settings_dict.get('output_file'), logger, include_artifacts=True)
+
+    logger.info("All regions processed in %s minutes.", round((time.time() - t0) / 60, 2))
     return output_gdf
 
 
@@ -358,12 +488,13 @@ def cli():
 @click.option('-v', '--verbose', is_flag=True, help='Enable verbose logging output')
 @click.option('--log-file', type=click.Path(dir_okay=False, path_type=Path),
               help='Path to save the log file')
-def site(config: Path, output: Path, verbose: bool, log_file: Path):
+@click.option('--workers', type=int, default=1, show_default=True,
+              help='Number of worker processes to use for region-level parallel execution')
+def site(config: Path, output: Path, verbose: bool, log_file: Path, workers: int):
     """Run the data center siting process using the provided configuration file."""
-    # Configure logging
     log_level = logging.DEBUG if verbose else logging.INFO
     log_format = '%(asctime)s - %(levelname)s - %(message)s'
-    
+
     if log_file:
         logging.basicConfig(
             level=log_level,
@@ -382,19 +513,17 @@ def site(config: Path, output: Path, verbose: bool, log_file: Path):
     logger = logging.getLogger(__name__)
 
     try:
-        # Run the siting process
-        output_gdf = run(str(config))
+        output_gdf = run(str(config), max_workers=workers)
 
-        # Save output if specified via CLI
         if output:
-            logger.info(f"Saving output to {output}")
-            output_gdf.to_file(output)
+            logger.info("Saving output to %s", output)
+            _write_geojson_file(output_gdf, output)
             html_path, csv_path = generate_output_artifacts(output)
-            logger.info(f"Saved HTML map to {html_path}")
-            logger.info(f"Saved CSV to {csv_path}")
+            logger.info("Saved HTML map to %s", html_path)
+            logger.info("Saved CSV to %s", csv_path)
 
     except Exception as e:
-        logger.error(f"Error running data center siting: {str(e)}")
+        logger.error("Error running data center siting: %s", str(e))
         sys.exit(1)
 
 

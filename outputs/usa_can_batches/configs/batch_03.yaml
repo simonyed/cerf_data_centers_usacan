@@ -1,9 +1,9 @@
 settings:
-  region_raster_path: C:/Users/67084/Desktop/cerf_data_centers/USA_CAN_inputs/state_siting_region.tif
-  siting_raster_path: C:/Users/67084/Desktop/cerf_data_centers/USA_CAN_inputs/composite_siting_suitability.tif
-  output_root: C:/Users/67084/Desktop/cerf_data_centers/outputs/usa_can_batches
-  cost_weight: 0.5
-  market_weight: 0.5
+  region_raster_path: USA_CAN_inputs/state_siting_region.tif
+  siting_raster_path: USA_CAN_inputs/composite_siting_suitability.tif
+  output_root: C:/cerf_data_centers/outputs/usa_can_batches
+  cost_weight: 1.0
+  market_weight: 0.0
   batch_id: 3
   selected_region_ids:
   - 90
@@ -14,91 +14,61 @@ settings:
   - 40
   - 33
   - 10
-  output_file: C:/Users/67084/Desktop/cerf_data_centers/outputs/usa_can_batches/batch_03/batch_03.geojson
+  output_file: C:/cerf_data_centers/outputs/usa_can_batches/batch_03/batch_03.geojson
 constraints:
-  land_cost_per_sqft: C:/Users/67084/Desktop/cerf_data_centers/USA_CAN_inputs/land_value_dollar_per_sqft.tif
-  electricity_rate_per_kwh: C:/Users/67084/Desktop/cerf_data_centers/USA_CAN_inputs/industrial_electricity_rates_dollar_per_kwh.tif
-  personal_prop_tax_rate: C:/Users/67084/Desktop/cerf_data_centers/USA_CAN_inputs/personal_property_tax_rate.tif
-  real_property_tax_rate: C:/Users/67084/Desktop/cerf_data_centers/USA_CAN_inputs/real_property_tax_rate.tif
-  sales_tax_rate: C:/Users/67084/Desktop/cerf_data_centers/USA_CAN_inputs/sales_tax_rate.tif
-  interconnection_distance_km: C:/Users/67084/Desktop/cerf_data_centers/USA_CAN_inputs/distance_to_substation.tif
-  mechanical_cool_fraction: C:/Users/67084/Desktop/cerf_data_centers/USA_CAN_inputs/mechanical_cooling_fraction.tif
-  water_cool_fraction: C:/Users/67084/Desktop/cerf_data_centers/USA_CAN_inputs/water_cooling_fraction.tif
+  land_cost_per_sqft: USA_CAN_inputs/land_value_dollar_per_sqft.tif
+  electricity_rate_per_kwh: USA_CAN_inputs/industrial_electricity_rates_dollar_per_kwh.tif
+  personal_prop_tax_rate: USA_CAN_inputs/personal_property_tax_rate.tif
+  real_property_tax_rate: USA_CAN_inputs/real_property_tax_rate.tif
+  sales_tax_rate: USA_CAN_inputs/sales_tax_rate.tif
+  interconnection_distance_km: USA_CAN_inputs/distance_to_substation.tif
+  mechanical_cool_fraction: USA_CAN_inputs/mechanical_cooling_fraction.tif
+  water_cool_fraction: USA_CAN_inputs/water_cooling_fraction.tif
 market_gravity:
-  market_raster_path: C:/Users/67084/Desktop/cerf_data_centers/USA_CAN_inputs/data_center_market_locations.tif
+  market_raster_path: USA_CAN_inputs/data_center_market_locations.tif
+scenarios:
+  large:
+    campus_size_square_ft: 4000000
+    equipment_capital_expenditure_usd: 44800000000
+    building_capital_expenditure_usd: 5400000000
+    data_center_it_power_mw: 1600
+    data_center_pue: 1.14
+    interconnection_cost_usd_per_km: 3000000
+    n_sites: 100
+  medium:
+    campus_size_square_ft: 2000000
+    equipment_capital_expenditure_usd: 22400000000
+    building_capital_expenditure_usd: 2900000000
+    data_center_it_power_mw: 800
+    data_center_pue: 1.14
+    interconnection_cost_usd_per_km: 3000000
+    n_sites: 200
+  small:
+    campus_size_square_ft: 1000000
+    equipment_capital_expenditure_usd: 11200000000
+    building_capital_expenditure_usd: 1650000000
+    data_center_it_power_mw: 400
+    data_center_pue: 1.14
+    interconnection_cost_usd_per_km: 3000000
+    n_sites: 400
+common_region_config: {}
 expansion_plan:
   region_90:
     region_id: 90
-    campus_size_square_ft: 4000000
-    equipment_capital_expenditure_usd: 40000000000
-    building_capital_expenditure_usd: 15000000000
-    data_center_it_power_mw: 36
-    data_center_pue: 1.3
-    interconnection_cost_usd_per_km: 3000000
-    n_sites: 500
   region_17:
     region_id: 17
-    campus_size_square_ft: 4000000
-    equipment_capital_expenditure_usd: 40000000000
-    building_capital_expenditure_usd: 15000000000
-    data_center_it_power_mw: 36
-    data_center_pue: 1.3
-    interconnection_cost_usd_per_km: 3000000
-    n_sites: 500
   region_55:
     region_id: 55
-    campus_size_square_ft: 4000000
-    equipment_capital_expenditure_usd: 40000000000
-    building_capital_expenditure_usd: 15000000000
-    data_center_it_power_mw: 36
-    data_center_pue: 1.3
-    interconnection_cost_usd_per_km: 3000000
-    n_sites: 500
   region_41:
     region_id: 41
-    campus_size_square_ft: 4000000
-    equipment_capital_expenditure_usd: 40000000000
-    building_capital_expenditure_usd: 15000000000
-    data_center_it_power_mw: 36
-    data_center_pue: 1.3
-    interconnection_cost_usd_per_km: 3000000
-    n_sites: 500
   region_22:
     region_id: 22
-    campus_size_square_ft: 4000000
-    equipment_capital_expenditure_usd: 40000000000
-    building_capital_expenditure_usd: 15000000000
-    data_center_it_power_mw: 36
-    data_center_pue: 1.3
-    interconnection_cost_usd_per_km: 3000000
-    n_sites: 500
   region_40:
     region_id: 40
-    campus_size_square_ft: 4000000
-    equipment_capital_expenditure_usd: 40000000000
-    building_capital_expenditure_usd: 15000000000
-    data_center_it_power_mw: 36
-    data_center_pue: 1.3
-    interconnection_cost_usd_per_km: 3000000
-    n_sites: 500
   region_33:
     region_id: 33
-    campus_size_square_ft: 4000000
-    equipment_capital_expenditure_usd: 40000000000
-    building_capital_expenditure_usd: 15000000000
-    data_center_it_power_mw: 36
-    data_center_pue: 1.3
-    interconnection_cost_usd_per_km: 3000000
-    n_sites: 500
   region_10:
     region_id: 10
-    campus_size_square_ft: 4000000
-    equipment_capital_expenditure_usd: 40000000000
-    building_capital_expenditure_usd: 15000000000
-    data_center_it_power_mw: 36
-    data_center_pue: 1.3
-    interconnection_cost_usd_per_km: 3000000
-    n_sites: 500
 batch_defaults:
   output_name_template: batch_{batch_id:02d}.geojson
   config_name_template: batch_{batch_id:02d}.yaml

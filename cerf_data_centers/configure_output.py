@@ -3,6 +3,10 @@ from typing import List, Dict, Any
 import pandas as pd
 import geopandas as gpd
 from shapely.geometry import Point
+from pyproj import Transformer
+
+
+_WEB_COORD_TRANSFORMER = Transformer.from_crs("ESRI:102003", "EPSG:4326", always_xy=True)
 
 
 def configure_output(
@@ -20,8 +24,8 @@ def configure_output(
             columns=[
                 'id',
                 'region',
-                'xcoord',
-                'ycoord',
+                'longitude',
+                'latitude',
                 'scenario',
                 'campus_size_square_ft',
                 'data_center_it_power_mw',
@@ -84,8 +88,8 @@ def configure_output(
             rows.append({
                 'id': output_id,
                 'region': result['region_name'],
-                'xcoord': x,
-                'ycoord': y,
+                'projected_xcoord': x,
+                'projected_ycoord': y,
                 'scenario': scenario,
                 'campus_size_square_ft': result['campus_size_square_ft'],
                 'data_center_it_power_mw': result.get('it_power_mw'),
@@ -107,8 +111,17 @@ def configure_output(
             })
 
     df = pd.DataFrame(rows)
-    geometry = [Point(xy) for xy in zip(df['xcoord'], df['ycoord'])]
+    geometry = [Point(xy) for xy in zip(df['projected_xcoord'], df['projected_ycoord'])]
     gdf = gpd.GeoDataFrame(df, crs='ESRI:102003', geometry=geometry)
     gdf['geometry'] = gdf['geometry'].buffer(50, cap_style=3)
     gdf = gdf.dissolve(by='id', as_index=False)
+
+    representative_points = gdf.geometry.representative_point()
+    lon_lat_pairs = [
+        _WEB_COORD_TRANSFORMER.transform(point.x, point.y)
+        for point in representative_points
+    ]
+    gdf['longitude'] = [lon for lon, _lat in lon_lat_pairs]
+    gdf['latitude'] = [lat for _lon, lat in lon_lat_pairs]
+    gdf = gdf.drop(columns=['projected_xcoord', 'projected_ycoord'])
     return gdf

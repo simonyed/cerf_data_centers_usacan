@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from copy import deepcopy
 from pathlib import Path
 
@@ -9,6 +10,7 @@ import pandas as pd
 import yaml
 
 from cerf_data_centers.postprocess_output import generate_output_artifacts
+from cerf_data_centers.run_siting import run
 
 
 def load_yaml(path: str | Path) -> dict:
@@ -143,9 +145,43 @@ def write_batch_configs(
     return summaries
 
 
-def run_batch(config_path: Path) -> None:
-    """Reserved for future batch execution. Do not execute in this phase."""
-    _ = config_path
+def _execute_batch_config(config_path: str | Path, region_workers: int = 1) -> str:
+    run(str(config_path), max_workers=max(1, region_workers))
+    return str(config_path)
+
+
+def execute_batches(
+    batch_summaries: list[dict],
+    max_workers: int = 1,
+    region_workers: int = 1,
+) -> None:
+    worker_count = max(1, max_workers)
+    region_worker_count = max(1, region_workers)
+
+    if worker_count == 1:
+        for summary in batch_summaries:
+            _execute_batch_config(summary["config_path"], region_workers=region_worker_count)
+        return
+
+    future_to_batch = {}
+    with ProcessPoolExecutor(max_workers=worker_count) as executor:
+        for summary in batch_summaries:
+            future = executor.submit(
+                _execute_batch_config,
+                str(summary["config_path"]),
+                region_worker_count,
+            )
+            future_to_batch[future] = summary["batch_id"]
+
+        for future in as_completed(future_to_batch):
+            batch_id = future_to_batch[future]
+            try:
+                future.result()
+            except Exception as exc:
+                for pending_future in future_to_batch:
+                    pending_future.cancel()
+                raise RuntimeError(f"Batch {batch_id:02d} execution failed.") from exc
+            print(f"Batch {batch_id:02d} complete")
 
 
 def merge_outputs(output_root: Path) -> None:
@@ -167,7 +203,7 @@ def merge_outputs(output_root: Path) -> None:
         merged_gdf = merged_gdf.sort_values(by=["region", "id"]).reset_index(drop=True)
 
     merged_geojson = merged_dir / "usa_can_merged.geojson"
-    merged_gdf.to_file(merged_geojson)
+    merged_geojson.write_text(merged_gdf.to_json(), encoding="utf-8")
     html_path, csv_path = generate_output_artifacts(merged_geojson)
 
     print(f"Merged {len(batch_geojsons)} batch outputs into {merged_geojson}")
@@ -177,18 +213,34 @@ def merge_outputs(output_root: Path) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Generate per-batch CERF siting configuration files without executing any runs."
+        description="Generate per-batch CERF siting configuration files and optionally execute them."
     )
     parser.add_argument("--master-config", required=True, help="Path to the master USA/CAN configuration YAML.")
     parser.add_argument("--batch-config", required=True, help="Path to the batch definition YAML.")
     parser.add_argument("--output-root", required=True, help="Directory where derived configs will be written.")
+    parser.add_argument("--execute", action="store_true", help="Run the generated batch configs after writing them.")
+    parser.add_argument("--workers", type=int, default=1, help="Number of parallel batch workers to use.")
+    parser.add_argument(
+        "--region-workers",
+        type=int,
+        default=1,
+        help="Number of parallel region workers to use inside each batch.",
+    )
     args = parser.parse_args()
 
-    write_batch_configs(
+    summaries = write_batch_configs(
         master_config_path=args.master_config,
         batch_config_path=args.batch_config,
         output_root=args.output_root,
     )
+
+    if args.execute:
+        execute_batches(
+            summaries,
+            max_workers=args.workers,
+            region_workers=args.region_workers,
+        )
+        merge_outputs(Path(args.output_root))
 
 
 if __name__ == "__main__":

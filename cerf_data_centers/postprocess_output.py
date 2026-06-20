@@ -142,6 +142,36 @@ HTML_TEMPLATE = """<!doctype html>
 """
 
 
+def _load_geojson_for_web_display(geojson_path: str | Path) -> gpd.GeoDataFrame:
+    """
+    Load output GeoJSON and correct legacy projected-coordinate files that were
+    serialized without CRS metadata.
+    """
+    gdf = gpd.read_file(geojson_path)
+    if gdf.empty:
+        return gdf
+
+    minx, miny, maxx, maxy = gdf.total_bounds
+    looks_like_projected_coords = any(
+        (
+            minx < -180,
+            maxx > 180,
+            miny < -90,
+            maxy > 90,
+        )
+    )
+    if looks_like_projected_coords:
+        return gdf.set_crs("ESRI:102003", allow_override=True).to_crs(epsg=4326)
+
+    if gdf.crs is None:
+        return gdf.set_crs(epsg=4326)
+
+    if gdf.crs != "EPSG:4326":
+        return gdf.to_crs(epsg=4326)
+
+    return gdf
+
+
 def export_geojson_properties_to_csv(geojson_path: str | Path, csv_path: str | Path | None = None) -> Path:
     geojson_path = Path(geojson_path)
     csv_path = Path(csv_path) if csv_path else geojson_path.with_suffix(".csv")
@@ -155,12 +185,11 @@ def render_geojson_map_html(geojson_path: str | Path, html_path: str | Path | No
     geojson_path = Path(geojson_path)
     html_path = Path(html_path) if html_path else geojson_path.with_name(f"{geojson_path.stem}_map.html")
 
-    gdf = gpd.read_file(geojson_path)
+    gdf = _load_geojson_for_web_display(geojson_path)
     if gdf.empty:
         raise ValueError(f"No features found in {geojson_path}")
 
-    wgs84_gdf = gdf.to_crs(epsg=4326)
-    geojson_obj = json.loads(wgs84_gdf.to_json())
+    geojson_obj = json.loads(gdf.to_json())
 
     first = gdf.iloc[0]
     unique_regions = sorted(gdf["region"].dropna().astype(str).unique().tolist())
@@ -172,7 +201,7 @@ def render_geojson_map_html(geojson_path: str | Path, html_path: str | Path | No
         region_metric = f"{len(unique_regions)} regions"
     description = (
         "Interactive map generated from the CERF Data Centers output GeoJSON. "
-        "The geometry was reprojected from ESRI:102003 to EPSG:4326 for web display."
+        "The geometry is displayed in EPSG:4326 for web mapping."
     )
     metrics = [
         ("Feature count", str(len(gdf))),

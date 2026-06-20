@@ -1,32 +1,32 @@
 ﻿settings:
-  region_raster_path: "C:/Users/67084/Desktop/cerf_data_centers/USA_CAN_inputs/state_siting_region.tif"
-  siting_raster_path: "C:/Users/67084/Desktop/cerf_data_centers/USA_CAN_inputs/composite_siting_suitability.tif"
-  output_root: "C:/Users/67084/Desktop/cerf_data_centers/outputs/usa_can_batches"
+  region_raster_path: "USA_CAN_inputs/state_siting_region.tif"
+  siting_raster_path: "USA_CAN_inputs/composite_siting_suitability.tif"
+  output_root: "outputs/usa_can_batches"
   cost_weight: 1.0
   market_weight: 0.0
 
 constraints:
-  land_cost_per_sqft: "C:/Users/67084/Desktop/cerf_data_centers/USA_CAN_inputs/land_value_dollar_per_sqft.tif"
-  electricity_rate_per_kwh: "C:/Users/67084/Desktop/cerf_data_centers/USA_CAN_inputs/industrial_electricity_rates_dollar_per_kwh.tif"
-  personal_prop_tax_rate: "C:/Users/67084/Desktop/cerf_data_centers/USA_CAN_inputs/personal_property_tax_rate.tif"
-  real_property_tax_rate: "C:/Users/67084/Desktop/cerf_data_centers/USA_CAN_inputs/real_property_tax_rate.tif"
-  sales_tax_rate: "C:/Users/67084/Desktop/cerf_data_centers/USA_CAN_inputs/sales_tax_rate.tif"
-  interconnection_distance_km: "C:/Users/67084/Desktop/cerf_data_centers/USA_CAN_inputs/distance_to_substation.tif"
-  mechanical_cool_fraction: "C:/Users/67084/Desktop/cerf_data_centers/USA_CAN_inputs/mechanical_cooling_fraction.tif"
-  water_cool_fraction: "C:/Users/67084/Desktop/cerf_data_centers/USA_CAN_inputs/water_cooling_fraction.tif"
+  land_cost_per_sqft: "USA_CAN_inputs/land_value_dollar_per_sqft.tif"
+  electricity_rate_per_kwh: "USA_CAN_inputs/industrial_electricity_rates_dollar_per_kwh.tif"
+  personal_prop_tax_rate: "USA_CAN_inputs/personal_property_tax_rate.tif"
+  real_property_tax_rate: "USA_CAN_inputs/real_property_tax_rate.tif"
+  sales_tax_rate: "USA_CAN_inputs/sales_tax_rate.tif"
+  interconnection_distance_km: "USA_CAN_inputs/distance_to_substation.tif"
+  mechanical_cool_fraction: "USA_CAN_inputs/mechanical_cooling_fraction.tif"
+  water_cool_fraction: "USA_CAN_inputs/water_cooling_fraction.tif"
 
 market_gravity:
-  market_raster_path: "C:/Users/67084/Desktop/cerf_data_centers/USA_CAN_inputs/data_center_market_locations.tif"
+  market_raster_path: "USA_CAN_inputs/data_center_market_locations.tif"
 
 scenarios:
   large:
     campus_size_square_ft: 4_000_000
     equipment_capital_expenditure_usd: 44_800_000_000
-    building_capital_expenditure_usd: 5_800_000_000
+    building_capital_expenditure_usd: 5_400_000_000
     data_center_it_power_mw: 1600
     data_center_pue: 1.14
     interconnection_cost_usd_per_km: 3_000_000
-    n_sites: 50
+    n_sites: 100
   medium:
     campus_size_square_ft: 2_000_000
     equipment_capital_expenditure_usd: 22_400_000_000
@@ -34,15 +34,15 @@ scenarios:
     data_center_it_power_mw: 800
     data_center_pue: 1.14
     interconnection_cost_usd_per_km: 3_000_000
-    n_sites: 50
+    n_sites: 200
   small:
     campus_size_square_ft: 1_000_000
     equipment_capital_expenditure_usd: 11_200_000_000
-    building_capital_expenditure_usd: 1_450_000_000
+    building_capital_expenditure_usd: 1_650_000_000
     data_center_it_power_mw: 400
     data_center_pue: 1.14
     interconnection_cost_usd_per_km: 3_000_000
-    n_sites: 50
+    n_sites: 400
 
 common_region_config: &common_region_config {}
 
