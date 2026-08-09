@@ -4,6 +4,11 @@ settings:
   output_file: "C:/Users/67084/Desktop/cerf_data_centers/outputs/new_jersey_siting_result.geojson"
   cost_weight: 0.5
   market_weight: 0.5
+  # 1 = include this location-dependent cost category; 0 = set it to zero.
+  enable_land_and_real_property_tax: 1
+  enable_personal_property_tax: 1
+  enable_sales_tax: 1
+  enable_industrial_electricity_and_cooling: 1
 
 constraints:
   land_cost_per_sqft: "C:/Users/67084/Desktop/cerf_data_centers/generated_inputs/new_jersey_subset/land_value_dollar_per_sqft.tif"

@@ -20,7 +20,11 @@ def calculate_locational_cost(
     water_cool_fraction = .5,
     cooling_water_intensity_gal_per_mwh = 460,
     cooling_water_consumption_fraction = .8,
-    facility_overhead_frac = 0
+    facility_overhead_frac = 0,
+    enable_land_and_real_property_tax: bool = True,
+    enable_personal_property_tax: bool = True,
+    enable_sales_tax: bool = True,
+    enable_industrial_electricity_and_cooling: bool = True,
 ) -> Tuple[float, Dict[str, float]]:
     """
     Calculate the locational cost for a data center campus based on various parameters.
@@ -45,6 +49,10 @@ def calculate_locational_cost(
         cooling_water_intensity_gal_per_mwh (float, optional): Water intensity for cooling in gallons per MWh. Defaults to 475.
         cooling_water_consumption_fraction (float, optional): Fraction of cooling water consumed. Defaults to 0.8.
         facility_overhead_frac (float, optional): Fraction of overhead energy demand (non-IT demand) for the facility that does not go towards cooling. Defaults to 0.
+        enable_land_and_real_property_tax (bool, optional): Whether to include land cost and real-property tax. Defaults to True.
+        enable_personal_property_tax (bool, optional): Whether to include personal-property tax. Defaults to True.
+        enable_sales_tax (bool, optional): Whether to include sales taxes. Defaults to True.
+        enable_industrial_electricity_and_cooling (bool, optional): Whether to include industrial electricity cost and cooling fractions. Defaults to True.
 
     Returns:
         Tuple[float, Dict[str, float]]: 
@@ -75,6 +83,19 @@ def calculate_locational_cost(
 
     # IT cooling energy demand 
     cooling_energy_demand_mwh = overhead_energy_demand_mwh - facility_overhead_energy_demand_mwh
+
+    if not enable_industrial_electricity_and_cooling:
+        elec_rate_usd_per_kwh = 0
+        mechanical_cool_fraction = 0
+        water_cool_fraction = 0
+
+    if not enable_land_and_real_property_tax:
+        land_cost_usd_per_sqft = 0
+        real_property_tax_rate = 0
+    if not enable_personal_property_tax:
+        personal_prop_tax_rate = 0
+    if not enable_sales_tax:
+        sales_tax_rate = 0
 
     # Calculate energy demand for different cooling types
     mechanical_cooling_energy_mwh = mechanical_cool_fraction * cooling_energy_demand_mwh

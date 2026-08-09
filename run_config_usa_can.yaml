@@ -4,6 +4,11 @@
   output_root: "outputs/usa_can_batches"
   cost_weight: 1.0
   market_weight: 0.0
+  # 1 = include this location-dependent cost category; 0 = set it to zero.
+  enable_land_and_real_property_tax: 0
+  enable_personal_property_tax: 0
+  enable_sales_tax: 1
+  enable_industrial_electricity_and_cooling: 0
 
 constraints:
   land_cost_per_sqft: "USA_CAN_inputs/land_value_dollar_per_sqft.tif"

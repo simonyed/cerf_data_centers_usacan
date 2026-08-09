@@ -95,6 +95,11 @@ Example configuration structure:
 settings:
   region_raster_path: "path/to/region.tif"
   siting_raster_path: "path/to/suitability.tif"
+  # Optional cost switches: 1 = include, 0 = set the corresponding regional costs to zero
+  enable_land_and_real_property_tax: 1
+  enable_personal_property_tax: 1
+  enable_sales_tax: 1
+  enable_industrial_electricity_and_cooling: 1
   output_file: "output.geojson"  # optional
 
 constraints:

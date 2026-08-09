@@ -28,6 +28,14 @@ from .postprocess_output import generate_output_artifacts
 from .utils import convert_sqft_to_grid_cells, get_normalized_value
 
 
+def _get_binary_setting(settings: dict, name: str) -> bool:
+    """Return a YAML 0/1 setting as a boolean, defaulting to enabled."""
+    value = settings.get(name, 1)
+    if value not in (0, 1, False, True):
+        raise ValueError(f"settings.{name} must be 0 or 1; received {value!r}.")
+    return bool(value)
+
+
 def _resolve_region_scenarios(
     region_name: str,
     region_dict: dict,
@@ -187,6 +195,16 @@ def _run_region_in_context(
     batch_suit_array = runtime_context['batch_suit_array']
     node_values = runtime_context['node_values']
     gravity_multiplier_array = runtime_context['gravity_multiplier_array']
+    enable_land_and_real_property_tax = _get_binary_setting(
+        settings_dict, 'enable_land_and_real_property_tax'
+    )
+    enable_personal_property_tax = _get_binary_setting(
+        settings_dict, 'enable_personal_property_tax'
+    )
+    enable_sales_tax = _get_binary_setting(settings_dict, 'enable_sales_tax')
+    enable_industrial_electricity_and_cooling = _get_binary_setting(
+        settings_dict, 'enable_industrial_electricity_and_cooling'
+    )
 
     logger.info("Processing region: %s", region_name)
 
@@ -244,6 +262,10 @@ def _run_region_in_context(
                 cooling_water_intensity_gal_per_mwh=cooling_water_intensity_gal_per_mwh,
                 cooling_water_consumption_fraction=cooling_water_consumption_fraction,
                 facility_overhead_frac=facility_overhead_frac,
+                enable_land_and_real_property_tax=enable_land_and_real_property_tax,
+                enable_personal_property_tax=enable_personal_property_tax,
+                enable_sales_tax=enable_sales_tax,
+                enable_industrial_electricity_and_cooling=enable_industrial_electricity_and_cooling,
             )
             G.nodes[node]['parameters'] = node_parameter_dict
 

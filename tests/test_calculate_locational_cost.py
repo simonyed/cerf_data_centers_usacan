@@ -157,6 +157,35 @@ def test_negative_or_zero_inputs():
                 'total_sales_tax_usd', 'interconnection_cost_usd']:
         assert cost_dict[key] == 0
 
+
+def test_cost_category_switches_zero_their_corresponding_costs():
+    _, cost_dict = calculate_locational_cost(
+        campus_size_square_ft=100_000,
+        land_cost_usd_per_sqft=10,
+        elec_rate_usd_per_kwh=0.08,
+        personal_prop_tax_rate=0.01,
+        real_property_tax_rate=0.012,
+        sales_tax_rate=0.07,
+        interconnection_distance_km=5,
+        equipment_capex_usd=200_000_000,
+        building_capex_usd=250_000_000,
+        interconnection_cost_usd_per_km=1_000_000,
+        data_center_it_power_mw=36,
+        data_center_pue=1.3,
+        enable_land_and_real_property_tax=False,
+        enable_personal_property_tax=False,
+        enable_sales_tax=False,
+        enable_industrial_electricity_and_cooling=False,
+    )
+    assert cost_dict['property_cost_usd'] == 0
+    assert cost_dict['real_property_taxes_usd'] == 0
+    assert cost_dict['personal_property_taxes_usd'] == 0
+    assert cost_dict['electricity_cost_usd'] == 0
+    assert cost_dict['equipment_sales_tax_usd'] == 0
+    assert cost_dict['total_sales_tax_usd'] == 0
+    assert cost_dict['cooling_energy_demand_mwh'] == 0
+    assert cost_dict['cooling_water_demand_mgy'] == 0
+
 def test_pue_impact_on_energy_cost():
     # Higher PUE should result in higher energy costs
     args = dict(
