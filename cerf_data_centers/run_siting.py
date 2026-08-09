@@ -237,7 +237,7 @@ def _run_region_in_context(
         data_center_pue = scenario_dict['data_center_pue']
         interconnection_cost_usd_per_km = scenario_dict['interconnection_cost_usd_per_km']
         number_of_sites = scenario_dict['n_sites']
-        min_block_size = convert_sqft_to_grid_cells(campus_size_square_ft)
+        min_block_size = int(convert_sqft_to_grid_cells(campus_size_square_ft))
 
         logger.info("Building siting graph for scenario %s...", scenario_name)
         G = build_graph(region_suit_array, min_block_size, raster_names, node_values)

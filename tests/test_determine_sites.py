@@ -62,6 +62,50 @@ def test_build_graph_and_node_attributes():
     for component in nx.connected_components(G):
         assert len(component) >= min_block_size
 
+
+def test_find_nearest_rectangle_uses_exact_target_area_when_available():
+    G = nx.grid_2d_graph(3, 3)
+
+    rectangle = determine_sites.find_nearest_rectangle(G, (1, 1), 6)
+
+    assert rectangle is not None
+    assert len(rectangle) == 6
+    rows = {row for row, _ in rectangle}
+    cols = {col for _, col in rectangle}
+    assert len(rows) * len(cols) == len(rectangle)
+
+
+def test_find_nearest_rectangle_falls_back_to_smallest_adequate_area():
+    # A 2-by-3 component cannot form a 5-cell rectangle.  The nearest
+    # adequate rectangle is all 6 cells, rather than an undersized parcel.
+    G = nx.grid_2d_graph(2, 3)
+
+    rectangle = determine_sites.find_nearest_rectangle(G, (0, 0), 5)
+
+    assert rectangle is not None
+    assert len(rectangle) == 6
+    assert set(rectangle) == set(G.nodes)
+
+
+def test_find_nearest_rectangle_enforces_maximum_aspect_ratio():
+    G = nx.grid_2d_graph(1, 10)
+
+    rectangle = determine_sites.find_nearest_rectangle(G, (0, 0), 10)
+
+    assert rectangle is None
+
+
+def test_find_nearest_rectangle_limits_area_growth_window():
+    G = nx.grid_2d_graph(10, 10)
+
+    # A 10-cell rectangle is possible only as 1-by-10 or 2-by-5.  Removing
+    # the latter leaves no acceptable rectangle through (0, 0) within the
+    # 10-to-15-cell search window, so the search returns promptly.
+    G.remove_nodes_from([(1, col) for col in range(5)])
+    rectangle = determine_sites.find_nearest_rectangle(G, (0, 0), 10)
+
+    assert rectangle is None or 10 <= len(rectangle) <= 15
+
 def test_site_based_on_locational_cost_simple():
     # Build a simple graph with all required attributes
     G = nx.Graph()
@@ -95,6 +139,10 @@ def test_site_based_on_locational_cost_simple():
     info = result[0][0]
     assert 'locational_cost' in info
     assert 'coord_list' in info
+    assert info['selected_grid_cell_count'] == 2
+    rows = {row for row, _ in info['row_col_list']}
+    cols = {col for _, col in info['row_col_list']}
+    assert len(rows) * len(cols) == 2
 
 def test_site_based_on_locational_cost_not_enough_neighbors():
     # Only one node, min_block_size=2, should skip and return empty

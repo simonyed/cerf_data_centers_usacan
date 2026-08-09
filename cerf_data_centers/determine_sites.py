@@ -1,4 +1,5 @@
 from collections import deque
+from math import ceil, isqrt
 from typing import List, Dict, Any
 from affine import Affine
 
@@ -84,6 +85,72 @@ def get_connected_nodes(
         raise ValueError("Not enough connected nodes from the starting node.")
 
     return result
+
+
+def _factor_pairs(cell_count: int) -> list[tuple[int, int]]:
+    """Return rectangle dimensions for ``cell_count``, least elongated first."""
+    pairs = []
+    for height in range(1, isqrt(cell_count) + 1):
+        if cell_count % height == 0:
+            width = cell_count // height
+            pairs.append((height, width))
+            if height != width:
+                pairs.append((width, height))
+    return sorted(pairs, key=lambda dimensions: (abs(dimensions[0] - dimensions[1]), dimensions))
+
+
+def find_nearest_rectangle(
+    graph: nx.Graph,
+    start_node: tuple[int, int],
+    target_cell_count: int,
+    max_aspect_ratio: float = 5.0,
+    max_area_growth_ratio: float = 0.5,
+) -> list[tuple[int, int]] | None:
+    """Find the smallest adequate all-suitable rectangle containing ``start_node``.
+
+    Candidate areas are checked from ``target_cell_count`` upwards, so an
+    undersized parcel is never selected.  To keep site selection tractable,
+    the search stops at a 50% area increase (or five cells, whichever is
+    larger).  If no rectangle in that practical range contains the current
+    lowest-scoring cell, the caller moves on to the next cell.  Only rectangles
+    with a length-to-width ratio at or below ``max_aspect_ratio`` are
+    considered.  For an equal area, compact rectangles are preferred.
+    """
+    if target_cell_count < 1:
+        raise ValueError("target_cell_count must be at least 1.")
+    if int(target_cell_count) != target_cell_count:
+        raise ValueError("target_cell_count must be a whole number of grid cells.")
+    if max_aspect_ratio < 1:
+        raise ValueError("max_aspect_ratio must be at least 1.")
+    if max_area_growth_ratio < 0:
+        raise ValueError("max_area_growth_ratio must not be negative.")
+    target_cell_count = int(target_cell_count)
+    if start_node not in graph:
+        return None
+
+    available_nodes = set(graph.nodes)
+    max_cell_count = min(
+        len(available_nodes),
+        target_cell_count + max(5, ceil(target_cell_count * max_area_growth_ratio)),
+    )
+    row, col = start_node
+
+    for cell_count in range(target_cell_count, max_cell_count + 1):
+        for height, width in _factor_pairs(cell_count):
+            if max(height, width) / min(height, width) > max_aspect_ratio:
+                continue
+            # Test every placement of this rectangle that contains the
+            # lowest-scoring cell currently under consideration.
+            for top_row in range(row - height + 1, row + 1):
+                for left_col in range(col - width + 1, col + 1):
+                    rectangle = [
+                        (rectangle_row, rectangle_col)
+                        for rectangle_row in range(top_row, top_row + height)
+                        for rectangle_col in range(left_col, left_col + width)
+                    ]
+                    if all(node in available_nodes for node in rectangle):
+                        return rectangle
+    return None
 
 
 def build_graph(
@@ -183,16 +250,20 @@ def site_based_on_siting_score(
             # No nodes left
             break
 
-        # Check how many connected components there are surrounding the min node
-        connections = list(nx.node_connected_component(H, min_node))
+        # Preserve the minimum-campus-area requirement.  The rectangle itself
+        # may use the closest feasible cell count, but only inside a remaining
+        # suitable component that is large enough for the requested campus.
+        connections = nx.node_connected_component(H, min_node)
+        selected_rectangle = (
+            find_nearest_rectangle(H, min_node, min_block_size)
+            if len(connections) >= min_block_size
+            else None
+        )
 
-        # If it has enough neighbors, get the connected nodes
-        if len(connections) >= min_block_size:
-            # Get connected nodes up to block size for data center campus
-            selected_neighbors = get_connected_nodes(H, min_node, min_block_size)
-
-            # Create a list of nodes that are now taken
-            nodes_to_remove = [min_node] + selected_neighbors
+        if selected_rectangle is not None:
+            # The selected cells fill their bounding box, which guarantees an
+            # axis-aligned four-sided parcel rather than a BFS-shaped polygon.
+            nodes_to_remove = selected_rectangle
 
             result_dict: Dict[int, Dict[str, Any]] = {}
 
@@ -203,7 +274,7 @@ def site_based_on_siting_score(
             # Get neighbor info
             coord_list = []
             row_col_list = []
-            for neighbor in selected_neighbors:
+            for neighbor in selected_rectangle:
                 row_n, col_n = neighbor
                 x_n, y_n = rasterio.transform.xy(transform, row_n, col_n)
                 coord_list.append((x_n, y_n))
@@ -217,7 +288,8 @@ def site_based_on_siting_score(
                 'normalized_locational_cost': H.nodes[min_node]['normalized_locational_cost'],
                 'normalized_gravity_score': H.nodes[min_node]['normalized_gravity_score'],
                 'coord_list': coord_list,
-                'row_col_list': row_col_list
+                'row_col_list': row_col_list,
+                'selected_grid_cell_count': len(selected_rectangle),
             }
 
             # attach parameters to the result dict

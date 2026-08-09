@@ -175,6 +175,7 @@ cython_debug/
 
 
 .DS_Store
+outputs/
 *.tif
 *.shp
 *.shx

@@ -138,7 +138,7 @@ expansion_plan:
     region_id: 1
 ```
 
-When `scenarios` is present, each region runs once per scenario. `n_sites` controls how many candidate sites are generated for each scenario, and the final merged output drops overlapping smaller sites in favor of larger ones.
+When `scenarios` is present, each region runs once per scenario. `n_sites` controls how many candidate sites are generated for each scenario, and the final merged output drops overlapping smaller sites in favor of larger ones. Each selected campus is an axis-aligned rectangle of suitable raster cells with a maximum 5:1 length-to-width ratio. If the requested cell count cannot form a suitable rectangle at a candidate location, the tool checks the smallest feasible rectangular cell count that is at least the requested area, up to a 50% increase (or five cells, whichever is larger). It never selects an undersized parcel; a candidate with no practical rectangle is skipped. The output field `selected_grid_cell_count` records the actual number of cells used.
 
 ## Python API
 
