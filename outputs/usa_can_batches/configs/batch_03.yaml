@@ -1,9 +1,13 @@
 settings:
   region_raster_path: USA_CAN_inputs/state_siting_region.tif
   siting_raster_path: USA_CAN_inputs/composite_siting_suitability.tif
-  output_root: C:/cerf_data_centers/outputs/usa_can_batches
+  output_root: D:/cerf_data_centers/outputs/usa_can_batches
   cost_weight: 1.0
   market_weight: 0.0
+  enable_land_and_real_property_tax: 0
+  enable_personal_property_tax: 0
+  enable_sales_tax: 1
+  enable_industrial_electricity_and_cooling: 0
   batch_id: 3
   selected_region_ids:
   - 90
@@ -14,7 +18,7 @@ settings:
   - 40
   - 33
   - 10
-  output_file: C:/cerf_data_centers/outputs/usa_can_batches/batch_03/batch_03.geojson
+  output_file: D:/cerf_data_centers/outputs/usa_can_batches/batch_03/batch_03.geojson
 constraints:
   land_cost_per_sqft: USA_CAN_inputs/land_value_dollar_per_sqft.tif
   electricity_rate_per_kwh: USA_CAN_inputs/industrial_electricity_rates_dollar_per_kwh.tif

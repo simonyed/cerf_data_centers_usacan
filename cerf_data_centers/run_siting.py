@@ -164,9 +164,16 @@ def _prepare_runtime_context(
         window=region_window,
     )
 
-    market_array = load_raster_array(raster_fn=market_dict['market_raster_path'], window=region_window)
-    logger.info("Calculating market gravity multipliers...")
-    gravity_multiplier_array = calc_gravity_array_from_distance(market_array, batch_suit_array)
+    market_weight = settings_dict.get('market_weight', 0.0)
+    if market_weight:
+        market_array = load_raster_array(
+            raster_fn=market_dict['market_raster_path'], window=region_window
+        )
+        logger.info("Calculating market gravity multipliers...")
+        gravity_multiplier_array = calc_gravity_array_from_distance(market_array, batch_suit_array)
+    else:
+        logger.info("Skipping market gravity calculation because market_weight is 0.")
+        gravity_multiplier_array = None
 
     return {
         'settings_dict': settings_dict,
@@ -178,6 +185,7 @@ def _prepare_runtime_context(
         'batch_suit_array': batch_suit_array,
         'node_values': node_values,
         'gravity_multiplier_array': gravity_multiplier_array,
+        'market_weight': market_weight,
     }
 
 
@@ -195,6 +203,7 @@ def _run_region_in_context(
     batch_suit_array = runtime_context['batch_suit_array']
     node_values = runtime_context['node_values']
     gravity_multiplier_array = runtime_context['gravity_multiplier_array']
+    market_weight = runtime_context['market_weight']
     enable_land_and_real_property_tax = _get_binary_setting(
         settings_dict, 'enable_land_and_real_property_tax'
     )
@@ -272,21 +281,21 @@ def _run_region_in_context(
         max_locational_cost = max(data['locational_cost'] for _, data in G.nodes(data=True))
         min_locational_cost = min(data['locational_cost'] for _, data in G.nodes(data=True))
 
-        logger.info("Calculating market gravity score for scenario %s...", scenario_name)
-        for node, _attrs in tqdm(list(G.nodes(data=True))):
-            G.nodes[node]['gravity_score'] = calc_gravity_score(
-                node,
-                gravity_multiplier_array,
-                data_center_it_power_mw,
-                alpha=0.5,
-            )
+        if market_weight:
+            logger.info("Calculating market gravity score for scenario %s...", scenario_name)
+            for node, _attrs in tqdm(list(G.nodes(data=True))):
+                G.nodes[node]['gravity_score'] = calc_gravity_score(
+                    node,
+                    gravity_multiplier_array,
+                    data_center_it_power_mw,
+                    alpha=0.5,
+                )
 
-        max_gravity_score = max(data['gravity_score'] for _, data in G.nodes(data=True))
-        min_gravity_score = min(data['gravity_score'] for _, data in G.nodes(data=True))
+            max_gravity_score = max(data['gravity_score'] for _, data in G.nodes(data=True))
+            min_gravity_score = min(data['gravity_score'] for _, data in G.nodes(data=True))
 
         logger.info("Normalizing cost and market score for scenario %s...", scenario_name)
         cost_weight = settings_dict.get('cost_weight', 1.0)
-        market_weight = settings_dict.get('market_weight', 0.0)
         for node, _attrs in tqdm(list(G.nodes(data=True))):
             G.nodes[node]['normalized_locational_cost'] = get_normalized_value(
                 G,
@@ -295,13 +304,16 @@ def _run_region_in_context(
                 max_value=max_locational_cost,
                 min_value=min_locational_cost,
             )
-            G.nodes[node]['normalized_gravity_score'] = get_normalized_value(
-                G,
-                attribute='gravity_score',
-                node=node,
-                max_value=max_gravity_score,
-                min_value=min_gravity_score,
-            )
+            if market_weight:
+                G.nodes[node]['normalized_gravity_score'] = get_normalized_value(
+                    G,
+                    attribute='gravity_score',
+                    node=node,
+                    max_value=max_gravity_score,
+                    min_value=min_gravity_score,
+                )
+            else:
+                G.nodes[node]['normalized_gravity_score'] = 0
 
             norm_loc_cost = G.nodes[node]['normalized_locational_cost']
             norm_gravity_score = G.nodes[node]['normalized_gravity_score']
