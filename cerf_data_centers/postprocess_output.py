@@ -192,13 +192,16 @@ def render_geojson_map_html(geojson_path: str | Path, html_path: str | Path | No
     geojson_obj = json.loads(gdf.to_json())
 
     first = gdf.iloc[0]
-    unique_regions = sorted(gdf["region"].dropna().astype(str).unique().tolist())
+    unique_regions = (
+        sorted(gdf["region"].dropna().astype(str).unique().tolist())
+        if "region" in gdf.columns else []
+    )
     if len(unique_regions) == 1:
         title = f"{unique_regions[0]} Siting Result"
         region_metric = unique_regions[0]
     else:
         title = f"{geojson_path.stem} Siting Result"
-        region_metric = f"{len(unique_regions)} regions"
+        region_metric = f"{len(unique_regions)} regions" if unique_regions else "Not reported"
     description = (
         "Interactive map generated from the CERF Data Centers output GeoJSON. "
         "The geometry is displayed in EPSG:4326 for web mapping."
@@ -206,10 +209,9 @@ def render_geojson_map_html(geojson_path: str | Path, html_path: str | Path | No
     metrics = [
         ("Feature count", str(len(gdf))),
         ("Region", region_metric),
-        ("Site ID", str(first["id"])),
+        ("Site ID", str(first.get("id", "Not reported"))),
         ("Campus size (sq ft)", f"{first['campus_size_square_ft']:.0f}"),
-        ("Land building cost (USD)", f"{first['land_building_cost_usd']:.4f}"),
-        ("Total capex cost (USD)", f"{first['total_capex_cost']:.4f}"),
+        ("Interconnection cost (USD)", f"{first.get('interconnection cost', 0):.4f}"),
     ]
     metrics_html = "\n".join(
         f'<div class="metric"><strong>{label}</strong>{value}</div>'

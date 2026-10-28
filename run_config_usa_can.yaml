@@ -7,8 +7,13 @@
   # 1 = include this location-dependent cost category; 0 = set it to zero.
   enable_land_and_real_property_tax: 0
   enable_personal_property_tax: 0
-  enable_sales_tax: 1
+  enable_sales_tax: 0
   enable_industrial_electricity_and_cooling: 0
+  # `distance_to_substation.tif` stores the number of 100 m grid cells, not km.
+  interconnection_distance_unit: "grid_cells"
+  # 1 = site every practical rectangular campus within 2 km of a substation,
+  # in large-to-small order, without cost ranking or per-scenario site limits.
+  interconnection_only_siting: 0
 
 constraints:
   land_cost_per_sqft: "USA_CAN_inputs/land_value_dollar_per_sqft.tif"
@@ -31,7 +36,7 @@ scenarios:
     data_center_it_power_mw: 1600
     data_center_pue: 1.14
     interconnection_cost_usd_per_km: 3_000_000
-    n_sites: 100
+    n_sites: 200
   medium:
     campus_size_square_ft: 2_000_000
     equipment_capital_expenditure_usd: 22_400_000_000
@@ -39,7 +44,7 @@ scenarios:
     data_center_it_power_mw: 800
     data_center_pue: 1.14
     interconnection_cost_usd_per_km: 3_000_000
-    n_sites: 200
+    n_sites: 400
   small:
     campus_size_square_ft: 1_000_000
     equipment_capital_expenditure_usd: 11_200_000_000
@@ -47,7 +52,7 @@ scenarios:
     data_center_it_power_mw: 400
     data_center_pue: 1.14
     interconnection_cost_usd_per_km: 3_000_000
-    n_sites: 400
+    n_sites: 800
 
 common_region_config: &common_region_config {}
 

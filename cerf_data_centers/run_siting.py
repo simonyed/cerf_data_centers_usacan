@@ -28,12 +28,36 @@ from .postprocess_output import generate_output_artifacts
 from .utils import convert_sqft_to_grid_cells, get_normalized_value
 
 
-def _get_binary_setting(settings: dict, name: str) -> bool:
-    """Return a YAML 0/1 setting as a boolean, defaulting to enabled."""
-    value = settings.get(name, 1)
+def _get_binary_setting(settings: dict, name: str, default: int = 1) -> bool:
+    """Return a YAML 0/1 setting as a boolean."""
+    value = settings.get(name, default)
     if value not in (0, 1, False, True):
         raise ValueError(f"settings.{name} must be 0 or 1; received {value!r}.")
     return bool(value)
+
+
+def _get_interconnection_distance_km(
+    raw_distance: float,
+    settings: dict,
+    transform,
+) -> float:
+    """Convert the configured interconnection-distance raster value to km."""
+    unit = settings.get('interconnection_distance_unit', 'km')
+    if unit == 'km':
+        return raw_distance
+    if unit == 'grid_cells':
+        cell_width_m = abs(transform.a)
+        cell_height_m = abs(transform.e)
+        if cell_width_m != cell_height_m:
+            raise ValueError(
+                'A grid-cell interconnection distance requires square raster cells; '
+                f'found {cell_width_m} m by {cell_height_m} m.'
+            )
+        return raw_distance * cell_width_m / 1_000
+    raise ValueError(
+        "settings.interconnection_distance_unit must be 'km' or 'grid_cells'; "
+        f"received {unit!r}."
+    )
 
 
 def _resolve_region_scenarios(
@@ -124,15 +148,23 @@ def _prepare_runtime_context(
     settings_dict = config_dict['settings']
     constraint_dict = config_dict['constraints']
     market_dict = config_dict['market_gravity']
+    interconnection_only_siting = _get_binary_setting(
+        settings_dict, 'interconnection_only_siting', default=0
+    )
 
-    raster_names = list(constraint_dict.keys())
-    raster_paths = list(constraint_dict.values())
+    if interconnection_only_siting:
+        raster_names = ['interconnection_distance_km']
+        raster_paths = [constraint_dict['interconnection_distance_km']]
+    else:
+        raster_names = list(constraint_dict.keys())
+        raster_paths = list(constraint_dict.values())
     all_raster_paths = [
         settings_dict['region_raster_path'],
         settings_dict['siting_raster_path'],
-        market_dict['market_raster_path'],
         *raster_paths,
     ]
+    if not interconnection_only_siting and settings_dict.get('market_weight', 0.0):
+        all_raster_paths.append(market_dict['market_raster_path'])
 
     logger.info("Validating raster alignment...")
     validate_raster_alignment(settings_dict['region_raster_path'], all_raster_paths[1:])
@@ -155,6 +187,11 @@ def _prepare_runtime_context(
     batch_region_mask = np.isin(region_array, selected_region_ids)
     batch_suit_array = np.where(batch_region_mask, suit_array, 0)
 
+    if interconnection_only_siting:
+        distance_array = load_raster_array(raster_paths[0], window=region_window)
+        distance_km = _get_interconnection_distance_km(distance_array, settings_dict, transform)
+        batch_suit_array = np.where(distance_km <= 2, batch_suit_array, 0)
+
     node_values = collect_constraints(
         batch_suit_array,
         transform,
@@ -164,7 +201,7 @@ def _prepare_runtime_context(
         window=region_window,
     )
 
-    market_weight = settings_dict.get('market_weight', 0.0)
+    market_weight = 0.0 if interconnection_only_siting else settings_dict.get('market_weight', 0.0)
     if market_weight:
         market_array = load_raster_array(
             raster_fn=market_dict['market_raster_path'], window=region_window
@@ -186,6 +223,7 @@ def _prepare_runtime_context(
         'node_values': node_values,
         'gravity_multiplier_array': gravity_multiplier_array,
         'market_weight': market_weight,
+        'interconnection_only_siting': interconnection_only_siting,
     }
 
 
@@ -204,6 +242,7 @@ def _run_region_in_context(
     node_values = runtime_context['node_values']
     gravity_multiplier_array = runtime_context['gravity_multiplier_array']
     market_weight = runtime_context['market_weight']
+    interconnection_only_siting = runtime_context['interconnection_only_siting']
     enable_land_and_real_property_tax = _get_binary_setting(
         settings_dict, 'enable_land_and_real_property_tax'
     )
@@ -218,6 +257,8 @@ def _run_region_in_context(
     logger.info("Processing region: %s", region_name)
 
     region_scenarios = _resolve_region_scenarios(region_name, region_dict, global_scenarios)
+    if interconnection_only_siting:
+        region_scenarios.sort(key=lambda item: item[1]['campus_size_square_ft'], reverse=True)
     region_id = region_dict['region_id']
     region_suit_array = get_region_suit_array(region_array, batch_suit_array, region_id)
 
@@ -236,7 +277,7 @@ def _run_region_in_context(
         data_center_it_power_mw = scenario_dict['data_center_it_power_mw']
         data_center_pue = scenario_dict['data_center_pue']
         interconnection_cost_usd_per_km = scenario_dict['interconnection_cost_usd_per_km']
-        number_of_sites = scenario_dict['n_sites']
+        number_of_sites = None if interconnection_only_siting else scenario_dict['n_sites']
         min_block_size = int(convert_sqft_to_grid_cells(campus_size_square_ft))
 
         logger.info("Building siting graph for scenario %s...", scenario_name)
@@ -249,6 +290,42 @@ def _run_region_in_context(
             )
             continue
 
+        if interconnection_only_siting:
+            for node, attrs in G.nodes(data=True):
+                distance_km = _get_interconnection_distance_km(
+                    attrs['interconnection_distance_km'], settings_dict, transform
+                )
+                G.nodes[node]['parameters'] = {
+                    'campus_size_square_ft': campus_size_square_ft,
+                    'it_power_mw': data_center_it_power_mw,
+                    'interconnection_cost_usd': (
+                        distance_km * interconnection_cost_usd_per_km
+                    ),
+                }
+
+            result_list = site_based_on_siting_score(
+                G,
+                number_of_sites,
+                min_block_size,
+                region_name,
+                transform,
+                attribute=None,
+            )
+            for result in result_list:
+                selected_nodes = result[next(iter(result))]['row_col_list']
+                rows, cols = zip(*selected_nodes)
+                region_suit_array[np.asarray(rows), np.asarray(cols)] = 0
+
+            scenario_gdf = configure_output(
+                result_list,
+                region_id,
+                output_prefix=f"{region_id}_{scenario_name}",
+                extra_fields={'scenario': scenario_name},
+                interconnection_only=True,
+            )
+            region_frames.append(scenario_gdf)
+            continue
+
         logger.info("Calculating locational costs for scenario %s...", scenario_name)
         for node, attrs in tqdm(list(G.nodes(data=True))):
             G.nodes[node]['locational_cost'], node_parameter_dict = calculate_locational_cost(
@@ -258,7 +335,9 @@ def _run_region_in_context(
                 personal_prop_tax_rate=attrs['personal_prop_tax_rate'],
                 real_property_tax_rate=attrs['real_property_tax_rate'],
                 sales_tax_rate=attrs['sales_tax_rate'],
-                interconnection_distance_km=attrs['interconnection_distance_km'],
+                interconnection_distance_km=_get_interconnection_distance_km(
+                    attrs['interconnection_distance_km'], settings_dict, transform
+                ),
                 mechanical_cool_fraction=attrs['mechanical_cool_fraction'],
                 water_cool_fraction=attrs['water_cool_fraction'],
                 equipment_capex_usd=equipment_capex_usd,

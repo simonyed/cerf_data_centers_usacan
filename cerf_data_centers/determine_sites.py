@@ -204,11 +204,11 @@ def build_graph(
 
 def site_based_on_siting_score(
     G: nx.Graph,
-    number_of_sites: int,
+    number_of_sites: int | None,
     min_block_size: int,
     region_name: str,
     transform: Affine,
-    attribute: str = 'total_weighted_siting_score'
+    attribute: str | None = 'total_weighted_siting_score'
 ) -> List[Dict[int, Dict[str, Any]]]:
     """
     Select sites based on the minimum locational cost and gravity score from a graph of suitable areas.
@@ -239,13 +239,15 @@ def site_based_on_siting_score(
     result_list: List[Dict[int, Dict[str, Any]]] = []
 
     # Loop until we have the desired number of sites or not enough areas left big enough to site
-    while len(result_list) < number_of_sites and H.number_of_nodes() > 0:
+    while (number_of_sites is None or len(result_list) < number_of_sites) and H.number_of_nodes() > 0:
         try:
-            # Collect the node with the smallest locational cost
-            min_node = min(
-                (node for node, data in H.nodes(data=True) if attribute in data),
-                key=lambda node: H.nodes[node][attribute]
-            )
+            if attribute is None:
+                min_node = min(H.nodes)
+            else:
+                min_node = min(
+                    (node for node, data in H.nodes(data=True) if attribute in data),
+                    key=lambda node: H.nodes[node][attribute]
+                )
         except ValueError:
             # No nodes left
             break
@@ -283,10 +285,10 @@ def site_based_on_siting_score(
             result_dict[i] = {
                 'region_name': region_name,
                 'min_node': (x, y),
-                'weighted_siting_score': H.nodes[min_node][attribute],
-                'locational_cost': H.nodes[min_node]['locational_cost'],
-                'normalized_locational_cost': H.nodes[min_node]['normalized_locational_cost'],
-                'normalized_gravity_score': H.nodes[min_node]['normalized_gravity_score'],
+                'weighted_siting_score': H.nodes[min_node].get(attribute) if attribute else None,
+                'locational_cost': H.nodes[min_node].get('locational_cost'),
+                'normalized_locational_cost': H.nodes[min_node].get('normalized_locational_cost'),
+                'normalized_gravity_score': H.nodes[min_node].get('normalized_gravity_score'),
                 'coord_list': coord_list,
                 'row_col_list': row_col_list,
                 'selected_grid_cell_count': len(selected_rectangle),

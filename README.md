@@ -100,6 +100,10 @@ settings:
   enable_personal_property_tax: 1
   enable_sales_tax: 1
   enable_industrial_electricity_and_cooling: 1
+  # Unit of the interconnection-distance raster: "km" (default) or "grid_cells"
+  interconnection_distance_unit: "km"
+  # Optional 2 km interconnection-first siting mode: 1 = enabled, 0 = disabled
+  interconnection_only_siting: 0
   output_file: "output.geojson"  # optional
 
 constraints:
@@ -138,7 +142,9 @@ expansion_plan:
     region_id: 1
 ```
 
-When `scenarios` is present, each region runs once per scenario. `n_sites` controls how many candidate sites are generated for each scenario, and the final merged output drops overlapping smaller sites in favor of larger ones. Each selected campus is an axis-aligned rectangle of suitable raster cells with a maximum 5:1 length-to-width ratio. If the requested cell count cannot form a suitable rectangle at a candidate location, the tool checks the smallest feasible rectangular cell count that is at least the requested area, up to a 50% increase (or five cells, whichever is larger). It never selects an undersized parcel; a candidate with no practical rectangle is skipped. The output field `selected_grid_cell_count` records the actual number of cells used.
+When `scenarios` is present, each region runs once per scenario. `n_sites` controls how many candidate sites are generated for each scenario, and the final merged output drops overlapping smaller sites in favor of larger ones. Each selected campus is an axis-aligned rectangle of suitable raster cells with a maximum 5:1 length-to-width ratio. If the requested cell count cannot form a suitable rectangle at a candidate location, the tool checks the smallest feasible rectangular cell count that is at least the requested area, up to a 50% increase (or five cells, whichever is larger). It never selects an undersized parcel; a candidate with no practical rectangle is skipped. The output field `selected_grid_cell_count` records the actual number of cells used. `interconnection_distance_unit` defaults to `km`; use `grid_cells` when the distance raster stores cell counts, in which case the grid resolution is converted to kilometers automatically.
+
+Set `interconnection_only_siting: 1` to select every practical rectangular campus within 2 km of a substation. In that mode, the tool processes scenarios from largest to smallest, removes each selected large or medium footprint before processing the next size, does not calculate or rank construction costs, and ignores `n_sites`. The CSV output contains only `scenario`, `campus_size_square_ft`, `selected_grid_cell_count`, `data_center_it_power_mw`, `interconnection cost`, `longitude`, and `latitude`; the GeoJSON includes those properties plus its required geometry.
 
 ## Python API
 

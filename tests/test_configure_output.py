@@ -118,6 +118,30 @@ def test_configure_output_empty_result():
     assert isinstance(gdf, gpd.GeoDataFrame)
     assert len(gdf) == 0
 
+
+def test_configure_output_interconnection_only_has_requested_columns():
+    result_list = [{
+        0: {
+            'coord_list': [(100, 200), (200, 200)],
+            'region_name': 'TestRegion',
+            'campus_size_square_ft': 20_000,
+            'selected_grid_cell_count': 2,
+            'it_power_mw': 5,
+            'interconnection_cost_usd': 300_000,
+        }
+    }]
+
+    gdf = configure_output(
+        result_list, 1, extra_fields={'scenario': 'small'}, interconnection_only=True
+    )
+
+    assert list(gdf.columns) == [
+        'scenario', 'campus_size_square_ft', 'selected_grid_cell_count',
+        'data_center_it_power_mw', 'interconnection cost', 'longitude',
+        'latitude', 'geometry',
+    ]
+    assert gdf.iloc[0]['interconnection cost'] == 300_000
+
 def test_configure_output_single_point():
     # Test with a single data center, single point
     base_keys = {

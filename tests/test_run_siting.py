@@ -196,6 +196,22 @@ def _normalize_output(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     return normalized
 
 
+def test_interconnection_distance_conversion_uses_grid_resolution():
+    transform = from_origin(0, 1_000, 100, 100)
+
+    assert run_siting._get_interconnection_distance_km(4, {}, transform) == 4
+    assert run_siting._get_interconnection_distance_km(
+        4, {"interconnection_distance_unit": "grid_cells"}, transform
+    ) == pytest.approx(0.4)
+
+
+def test_interconnection_distance_conversion_rejects_unknown_unit():
+    with pytest.raises(ValueError, match="interconnection_distance_unit"):
+        run_siting._get_interconnection_distance_km(
+            4, {"interconnection_distance_unit": "miles"}, from_origin(0, 1_000, 100, 100)
+        )
+
+
 @pytest.mark.filterwarnings("ignore::DeprecationWarning:pyogrio.*:")
 def test_cli_site_command(monkeypatch, minimal_config, dummy_raster_files, tmp_path):
     called = []
@@ -316,6 +332,22 @@ def test_run_parallel_matches_serial(two_region_config):
         _normalize_output(parallel_result),
         check_dtype=False,
     )
+
+
+def test_interconnection_only_siting_outputs_only_requested_fields(two_region_config):
+    config = yaml.safe_load(two_region_config.read_text(encoding='utf-8'))
+    config['settings']['interconnection_only_siting'] = 1
+    _write_yaml(two_region_config, config)
+
+    result = run_siting.run(str(two_region_config), max_workers=1)
+
+    assert list(result.columns) == [
+        'scenario', 'campus_size_square_ft', 'selected_grid_cell_count',
+        'data_center_it_power_mw', 'interconnection cost', 'longitude',
+        'latitude', 'geometry',
+    ]
+    assert not result.empty
+    assert set(result['selected_grid_cell_count']) == {1}
 
 
 def test_run_parallel_failure_does_not_write_output(monkeypatch, two_region_config):

@@ -14,12 +14,22 @@ def configure_output(
     region_id: int,
     output_prefix: str | None = None,
     extra_fields: dict[str, Any] | None = None,
+    interconnection_only: bool = False,
 ) -> gpd.GeoDataFrame:
     """
     Configure siting results into a GeoDataFrame with only the requested
     output fields.
     """
     if not result_list:
+        if interconnection_only:
+            return gpd.GeoDataFrame(
+                columns=[
+                    'scenario', 'campus_size_square_ft', 'selected_grid_cell_count',
+                    'data_center_it_power_mw', 'interconnection cost', 'longitude',
+                    'latitude', 'geometry',
+                ],
+                geometry='geometry', crs='ESRI:102003',
+            )
         return gpd.GeoDataFrame(
             columns=[
                 'id',
@@ -56,6 +66,24 @@ def configure_output(
     for i in range(len(result_list)):
         result = result_list[i][i]
         output_id = f"{output_prefix}_{i}" if output_prefix else f"{region_id}_{i}"
+        scenario = extra_fields.get('scenario')
+        remaining_extra_fields = {k: v for k, v in extra_fields.items() if k != 'scenario'}
+
+        if interconnection_only:
+            for x, y in result['coord_list']:
+                rows.append({
+                    'id': output_id,
+                    'projected_xcoord': x,
+                    'projected_ycoord': y,
+                    'scenario': scenario,
+                    'campus_size_square_ft': result['campus_size_square_ft'],
+                    'selected_grid_cell_count': result.get('selected_grid_cell_count'),
+                    'data_center_it_power_mw': result.get('it_power_mw'),
+                    'interconnection cost': result['interconnection_cost_usd'],
+                    **remaining_extra_fields,
+                })
+            continue
+
         building_capex_usd = result.get('building_capex_usd', result.get('building_capex', 0))
         equipment_capex_usd = result.get('equipment_capex_usd', result.get('equipment_capex', 0))
         land_building_cost_usd = result.get(
@@ -81,9 +109,6 @@ def configure_output(
             equipment_sales_tax_usd +
             interconnection_cost_usd,
         )
-
-        scenario = extra_fields.get('scenario')
-        remaining_extra_fields = {k: v for k, v in extra_fields.items() if k != 'scenario'}
 
         for x, y in result['coord_list']:
             rows.append({
@@ -126,4 +151,12 @@ def configure_output(
     gdf['longitude'] = [lon for lon, _lat in lon_lat_pairs]
     gdf['latitude'] = [lat for _lon, lat in lon_lat_pairs]
     gdf = gdf.drop(columns=['projected_xcoord', 'projected_ycoord'])
+    if interconnection_only:
+        gdf = gdf[
+            [
+                'scenario', 'campus_size_square_ft', 'selected_grid_cell_count',
+                'data_center_it_power_mw', 'interconnection cost', 'longitude',
+                'latitude', 'geometry',
+            ]
+        ]
     return gdf

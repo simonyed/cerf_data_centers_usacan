@@ -197,3 +197,21 @@ def test_site_based_on_locational_cost_multiple_sites():
     )
     assert isinstance(result, list)
     assert len(result) == 2
+
+
+def test_site_selection_without_cost_ranking_has_no_site_limit():
+    G = nx.grid_2d_graph(1, 4)
+    for node in G.nodes:
+        G.nodes[node]['parameters'] = {
+            'campus_size_square_ft': 10_000,
+            'it_power_mw': 1,
+            'interconnection_cost_usd': 300_000,
+        }
+
+    result = determine_sites.site_based_on_siting_score(
+        G, number_of_sites=None, min_block_size=2, region_name='TestRegion',
+        transform=Affine.identity(), attribute=None,
+    )
+
+    assert len(result) == 2
+    assert all(len(site[index]['row_col_list']) == 2 for index, site in enumerate(result))
